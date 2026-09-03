@@ -7,10 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.ui.screens.AssistantScreen
-import com.example.ui.screens.ChartScreen
-import com.example.ui.screens.HomeScreen
-import com.example.ui.screens.TransitScreen
+import com.example.ui.screens.*
 
 @Composable
 fun JyotishNavGraph(
@@ -22,17 +19,17 @@ fun JyotishNavGraph(
         startDestination = Screen.Home.route,
         modifier = Modifier.padding(innerPadding)
     ) {
-        composable(Screen.Home.route) {
-            HomeScreen()
-        }
-        composable(Screen.Chart.route) {
-            ChartScreen()
-        }
-        composable(Screen.Transit.route) {
-            TransitScreen()
-        }
-        composable(Screen.Assistant.route) {
-            AssistantScreen()
-        }
+        composable(Screen.Home.route) { HomeScreen() }
+        composable(Screen.Chart.route) { ChartScreen() }
+        composable(Screen.Transit.route) { TransitScreen() }
+        composable(Screen.Assistant.route) { AssistantScreen() }
+        composable(Screen.Predictions.route) { PredictionsScreen() }
+        composable(Screen.Dasha.route) { DashaScreen() }
+        composable(Screen.Panchang.route) { PanchangScreen() }
+        composable(Screen.Muhurta.route) { MuhurtaScreen() }
+        composable(Screen.Compatibility.route) { CompatibilityScreen() }
+        composable(Screen.Numerology.route) { NumerologyScreen() }
+        composable(Screen.Settings.route) { SettingsScreen() }
     }
 }
+

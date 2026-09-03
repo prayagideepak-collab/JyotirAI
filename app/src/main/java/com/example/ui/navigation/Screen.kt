@@ -5,4 +5,11 @@ sealed class Screen(val route: String) {
     object Chart : Screen("chart")
     object Transit : Screen("transit")
     object Assistant : Screen("assistant")
+    object Predictions : Screen("predictions")
+    object Dasha : Screen("dasha")
+    object Panchang : Screen("panchang")
+    object Muhurta : Screen("muhurta")
+    object Compatibility : Screen("compatibility")
+    object Numerology : Screen("numerology")
+    object Settings : Screen("settings")
 }

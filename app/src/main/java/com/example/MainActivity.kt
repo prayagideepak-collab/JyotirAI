@@ -36,13 +36,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             JyotishTheme {
-                JyotishApp()
+                JyotirAIApp()
             }
         }
     }
 }
 @Composable
-fun JyotishApp() {
+fun JyotirAIApp() {
     val navController = rememberNavController()
 
     Scaffold(
