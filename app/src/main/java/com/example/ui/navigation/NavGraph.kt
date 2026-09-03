@@ -4,23 +4,26 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.ui.screens.*
+import com.example.ui.viewmodel.AstrologyViewModel
 
 @Composable
 fun JyotishNavGraph(
     navController: NavHostController,
-    innerPadding: PaddingValues
+    innerPadding: PaddingValues,
+    astrologyViewModel: AstrologyViewModel = viewModel()
 ) {
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
         modifier = Modifier.padding(innerPadding)
     ) {
-        composable(Screen.Home.route) { HomeScreen() }
-        composable(Screen.Chart.route) { ChartScreen() }
+        composable(Screen.Home.route) { HomeScreen(viewModel = astrologyViewModel) }
+        composable(Screen.Chart.route) { ChartScreen(viewModel = astrologyViewModel) }
         composable(Screen.Transit.route) { TransitScreen() }
         composable(Screen.Assistant.route) { AssistantScreen() }
         composable(Screen.Predictions.route) { PredictionsScreen() }
@@ -32,4 +35,3 @@ fun JyotishNavGraph(
         composable(Screen.Settings.route) { SettingsScreen() }
     }
 }
-
