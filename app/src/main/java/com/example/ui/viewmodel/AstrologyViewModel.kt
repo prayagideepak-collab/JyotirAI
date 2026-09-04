@@ -81,8 +81,8 @@ class AstrologyViewModel(
     private val _transitUiState = MutableStateFlow<TransitUiState>(TransitUiState.Loading)
     val transitUiState: StateFlow<TransitUiState> = _transitUiState.asStateFlow()
 
-    private val _transitDateTime = MutableStateFlow<ZonedDateTime>(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")))
-    val transitDateTime: StateFlow<ZonedDateTime> = _transitDateTime.asStateFlow()
+    private val _transitDateTime = MutableStateFlow<ZonedDateTime?>(null)
+    val transitDateTime: StateFlow<ZonedDateTime?> = _transitDateTime.asStateFlow()
 
     private val _selectedTransitPlanet = MutableStateFlow<TransitPosition?>(null)
     val selectedTransitPlanet: StateFlow<TransitPosition?> = _selectedTransitPlanet.asStateFlow()
@@ -90,8 +90,8 @@ class AstrologyViewModel(
     // Panchang State
     private val _panchangUiState = MutableStateFlow<PanchangUiState>(PanchangUiState.Loading)
     val panchangUiState: StateFlow<PanchangUiState> = _panchangUiState.asStateFlow()
-    private val _panchangDateTime = MutableStateFlow<ZonedDateTime>(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")))
-    val panchangDateTime: StateFlow<ZonedDateTime> = _panchangDateTime.asStateFlow()
+    private val _panchangDateTime = MutableStateFlow<ZonedDateTime?>(null)
+    val panchangDateTime: StateFlow<ZonedDateTime?> = _panchangDateTime.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -99,9 +99,11 @@ class AstrologyViewModel(
             _savedLocation.value = loc
             
             // Re-initialize timezones if location found
-            val zone = loc?.timeZoneId?.let { ZoneId.of(it) } ?: ZoneId.systemDefault()
-            _panchangDateTime.value = ZonedDateTime.now(zone)
-            _transitDateTime.value = ZonedDateTime.now(zone)
+            loc?.timeZoneId?.let { tz ->
+                val zone = ZoneId.of(tz)
+                _panchangDateTime.value = ZonedDateTime.now(zone)
+                _transitDateTime.value = ZonedDateTime.now(zone)
+            }
             
             loadPanchang()
             loadTransits()
@@ -215,19 +217,22 @@ class AstrologyViewModel(
         dateTime: ZonedDateTime? = null,
         location: BirthLocation? = null
     ) {
-        val targetZoned = dateTime ?: _panchangDateTime.value
-        _panchangDateTime.value = targetZoned
         val targetLocation = location
             ?: _currentBirthData.value?.location
             ?: _savedLocation.value
-        
-        if (targetLocation == null) {
-            _panchangUiState.value = PanchangUiState.Error("Location not set. Please select a location.")
+            
+        if (targetLocation == null || targetLocation.timeZoneId == null) {
+            _panchangUiState.value = PanchangUiState.Error("Location not set or missing timezone. Please select a valid location.")
             return
         }
+        
+        val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
+        val finalTargetZoned = dateTime ?: _panchangDateTime.value ?: java.time.ZonedDateTime.now(zone)
+        _panchangDateTime.value = finalTargetZoned
+        
         viewModelScope.launch {
             _panchangUiState.value = PanchangUiState.Loading
-            val result = astrologyEngine.calculatePanchang(targetZoned, targetLocation)
+            val result = astrologyEngine.calculatePanchang(finalTargetZoned, targetLocation)
             result.fold(
                 onSuccess = { snapshot -> _panchangUiState.value = PanchangUiState.Success(snapshot) },
                 onFailure = { error -> _panchangUiState.value = PanchangUiState.Error(error.message ?: "Failed") }
@@ -236,10 +241,17 @@ class AstrologyViewModel(
     }
 
     fun setPanchangDateTime(dateTime: ZonedDateTime) { loadPanchang(dateTime = dateTime) }
-    fun shiftPanchangDays(days: Long) { loadPanchang(dateTime = _panchangDateTime.value.plusDays(days)) }
+    fun shiftPanchangDays(days: Long) { 
+        _panchangDateTime.value?.let { current -> 
+            loadPanchang(dateTime = current.plusDays(days)) 
+        } 
+    }
     fun resetPanchangToNow() {
-        val zone = _currentBirthData.value?.timeZone ?: _panchangDateTime.value.zone ?: ZoneId.of("Asia/Kolkata")
-        loadPanchang(dateTime = ZonedDateTime.now(zone))
+        val targetLocation = _currentBirthData.value?.location ?: _savedLocation.value
+        if (targetLocation?.timeZoneId != null) {
+            val zone = ZoneId.of(targetLocation.timeZoneId)
+            loadPanchang(dateTime = ZonedDateTime.now(zone))
+        }
     }
 
     fun loadTransits(
@@ -247,24 +259,25 @@ class AstrologyViewModel(
         location: BirthLocation? = null,
         natalProfile: AstrologyProfile? = null
     ) {
-        val targetZoned = dateTime ?: _transitDateTime.value
-        _transitDateTime.value = targetZoned
-
         val targetLocation = location
             ?: _currentBirthData.value?.location
             ?: _savedLocation.value
-        
-        if (targetLocation == null) {
-            _transitUiState.value = TransitUiState.Error("Location not set. Please select a location.")
+            
+        if (targetLocation == null || targetLocation.timeZoneId == null) {
+            _transitUiState.value = TransitUiState.Error("Location not set or missing timezone. Please select a valid location.")
             return
         }
+        
+        val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
+        val finalTargetZoned = dateTime ?: _transitDateTime.value ?: java.time.ZonedDateTime.now(zone)
+        _transitDateTime.value = finalTargetZoned
 
         val profileToUse = natalProfile ?: (_uiState.value as? AstrologyUiState.Success)?.profile
 
         viewModelScope.launch {
             _transitUiState.value = TransitUiState.Loading
             val result = astrologyEngine.calculateTransitSnapshot(
-                transitDateTime = targetZoned,
+                transitDateTime = finalTargetZoned,
                 location = targetLocation,
                 natalProfile = profileToUse
             )
@@ -286,19 +299,23 @@ class AstrologyViewModel(
     }
 
     fun shiftTransitDays(days: Long) {
-        val updated = _transitDateTime.value.plusDays(days)
-        loadTransits(dateTime = updated)
+        _transitDateTime.value?.let { current ->
+            loadTransits(dateTime = current.plusDays(days))
+        }
     }
 
     fun shiftTransitMonths(months: Long) {
-        val updated = _transitDateTime.value.plusMonths(months)
-        loadTransits(dateTime = updated)
+        _transitDateTime.value?.let { current ->
+            loadTransits(dateTime = current.plusMonths(months))
+        }
     }
 
     fun resetTransitToNow() {
-        val zone = _currentBirthData.value?.timeZone ?: _transitDateTime.value.zone ?: ZoneId.of("Asia/Kolkata")
-        val now = ZonedDateTime.now(zone)
-        loadTransits(dateTime = now)
+        val targetLocation = _currentBirthData.value?.location ?: _savedLocation.value
+        if (targetLocation?.timeZoneId != null) {
+            val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
+            loadTransits(dateTime = java.time.ZonedDateTime.now(zone))
+        }
     }
 
     fun selectTransitPlanet(planet: TransitPosition?) {

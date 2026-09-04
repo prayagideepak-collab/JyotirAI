@@ -33,7 +33,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
         ) {
             Button(onClick = { viewModel.shiftPanchangDays(-1) }) { Text("-1D") }
             Text(
-                text = dateTime.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                text = dateTime?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) ?: "Loading...",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

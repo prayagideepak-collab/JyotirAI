@@ -1,7 +1,6 @@
 package com.example.domain.location
 
 import android.content.Context
-import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import com.example.domain.models.BirthLocation
@@ -9,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
-import java.util.TimeZone
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -33,7 +31,7 @@ class AndroidLocationResolver(private val context: Context) : LocationResolver {
         }
 
         // 1. Check presets first
-        val presetMatch = offlinePresets.filter { it.placeName.contains(query, ignoreCase = true) }
+        val presetMatch = offlinePresets.filter { it.placeName.equals(query, ignoreCase = true) }
         if (presetMatch.isNotEmpty()) {
             return@withContext Result.success(presetMatch)
         }
@@ -61,56 +59,38 @@ class AndroidLocationResolver(private val context: Context) : LocationResolver {
                 return@withContext Result.failure(Exception("Location not found for query: $query"))
             }
 
-            val locations = addresses.map { addr ->
-                val name = addr.locality ?: addr.subAdminArea ?: addr.adminArea ?: addr.countryName ?: query
-                BirthLocation(
-                    latitude = addr.latitude,
-                    longitude = addr.longitude,
-                    placeName = name,
-                    altitudeMeters = 0.0, // Geocoder doesn't provide altitude reliably
-                    timeZoneId = guessTimeZone(addr.latitude, addr.longitude, addr.countryCode),
-                    isVerified = true,
-                    source = "geocoder"
-                )
+            // 3. Resolve timezone and elevation for the best matching addresses
+            // To prevent hanging, we only process up to 3 candidates
+            val locations = mutableListOf<BirthLocation>()
+            for (addr in addresses.take(3)) {
+                val parts = listOfNotNull(addr.locality, addr.adminArea, addr.countryName).filter { it.isNotBlank() }
+                val name = if (parts.isNotEmpty()) parts.joinToString(", ") else query
+                val (timezone, elevation) = OpenMeteoProvider.getTimezoneAndElevation(addr.latitude, addr.longitude)
+                
+                if (timezone != null) {
+                    locations.add(
+                        BirthLocation(
+                            latitude = addr.latitude,
+                            longitude = addr.longitude,
+                            placeName = name,
+                            altitudeMeters = elevation,
+                            timeZoneId = timezone,
+                            isVerified = true,
+                            source = "geocoder+openmeteo"
+                        )
+                    )
+                }
             }
+            
+            if (locations.isEmpty()) {
+                return@withContext Result.failure(Exception("Could not determine authoritative timezone for location"))
+            }
+            
             Result.success(locations)
         } catch (e: IOException) {
             Result.failure(Exception("Network or geocoding error: ${e.message}", e))
         } catch (e: Exception) {
             Result.failure(Exception("Error resolving location: ${e.message}", e))
-        }
-    }
-    
-    // A very simple timezone guesser since Android Geocoder doesn't return timezones.
-    // In a real production app we'd use a local TimeZone mapper library like tz-lookup.
-    private fun guessTimeZone(lat: Double, lon: Double, countryCode: String?): String {
-        // Fallback heuristics for common countries
-        return when (countryCode?.uppercase(Locale.ROOT)) {
-            "IN" -> "Asia/Kolkata"
-            "GB", "UK" -> "Europe/London"
-            "US" -> {
-                when {
-                    lon < -114 -> "America/Los_Angeles"
-                    lon < -102 -> "America/Denver"
-                    lon < -85 -> "America/Chicago"
-                    else -> "America/New_York"
-                }
-            }
-            "JP" -> "Asia/Tokyo"
-            "AU" -> {
-                when {
-                    lon < 129 -> "Australia/Perth"
-                    lon < 141 -> "Australia/Adelaide"
-                    else -> "Australia/Sydney"
-                }
-            }
-            else -> {
-                // Extremely naive fallback based on longitude slices (15 degrees per hour)
-                val offsetHours = Math.round(lon / 15.0).toInt()
-                val sign = if (offsetHours >= 0) "+" else "-"
-                val absHours = Math.abs(offsetHours)
-                "Etc/GMT${if (offsetHours >= 0) "-" else "+"}$absHours" // Etc/GMT has inverted signs
-            }
         }
     }
 }

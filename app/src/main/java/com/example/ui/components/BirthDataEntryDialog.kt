@@ -372,7 +372,7 @@ fun BirthDataEntryDialog(
 
                                 val zoneIdString = resolvedLocation!!.timeZoneId
                                 val zone = try {
-                                    if (zoneIdString != null) ZoneId.of(zoneIdString.trim()) else ZoneId.systemDefault()
+                                    if (zoneIdString != null) ZoneId.of(zoneIdString.trim()) else throw IllegalArgumentException("Location does not have a verified timezone.")
                                 } catch (e: Exception) {
                                     throw IllegalArgumentException("Unknown TimeZone: $zoneIdString.")
                                 }

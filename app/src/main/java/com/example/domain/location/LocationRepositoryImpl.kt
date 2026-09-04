@@ -6,30 +6,43 @@ import com.example.domain.models.BirthLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class LocationRepositoryImpl(context: android.content.Context) : LocationRepository {
+class LocationRepositoryImpl(context: Context) : LocationRepository {
     private val prefs: SharedPreferences = context.getSharedPreferences("jyotirai_location_prefs", Context.MODE_PRIVATE)
 
     override suspend fun saveVerifiedLocation(location: BirthLocation) = withContext(Dispatchers.IO) {
-        prefs.edit()
-            .putFloat("lat", location.latitude.toFloat())
-            .putFloat("lon", location.longitude.toFloat())
+        val editor = prefs.edit()
+            .putLong("lat_bits", location.latitude.toRawBits())
+            .putLong("lon_bits", location.longitude.toRawBits())
             .putString("placeName", location.placeName)
-            .putFloat("alt", location.altitudeMeters.toFloat())
             .putString("tz", location.timeZoneId)
             .putBoolean("verified", location.isVerified)
             .putString("source", location.source)
-            .apply()
+        
+        if (location.altitudeMeters != null) {
+            editor.putLong("alt_bits", location.altitudeMeters.toRawBits())
+            editor.putBoolean("has_alt", true)
+        } else {
+            editor.remove("alt_bits")
+            editor.putBoolean("has_alt", false)
+        }
+        editor.apply()
     }
 
     override suspend fun getVerifiedLocation(): BirthLocation? = withContext(Dispatchers.IO) {
-        if (!prefs.contains("lat")) return@withContext null
+        if (!prefs.contains("lat_bits")) return@withContext null
         
         try {
+            val altitudeMeters = if (prefs.getBoolean("has_alt", false)) {
+                Double.fromBits(prefs.getLong("alt_bits", 0L))
+            } else {
+                null
+            }
+
             BirthLocation(
-                latitude = prefs.getFloat("lat", 0f).toDouble(),
-                longitude = prefs.getFloat("lon", 0f).toDouble(),
+                latitude = Double.fromBits(prefs.getLong("lat_bits", 0L)),
+                longitude = Double.fromBits(prefs.getLong("lon_bits", 0L)),
                 placeName = prefs.getString("placeName", "") ?: "",
-                altitudeMeters = prefs.getFloat("alt", 0f).toDouble(),
+                altitudeMeters = altitudeMeters,
                 timeZoneId = prefs.getString("tz", null),
                 isVerified = prefs.getBoolean("verified", false),
                 source = prefs.getString("source", "unknown") ?: "unknown"

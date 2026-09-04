@@ -4,6 +4,7 @@ import com.example.domain.models.BirthLocation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.junit.Assert.assertNull
 
 class BirthLocationTest {
 
@@ -59,5 +60,11 @@ class BirthLocationTest {
         assertThrows(IllegalArgumentException::class.java) {
             BirthLocation(28.0, 77.0, "   ")
         }
+    }
+    
+    @Test
+    fun testNullAltitude() {
+        val loc = BirthLocation(28.0, 77.0, "Null Alt", altitudeMeters = null)
+        assertNull(loc.altitudeMeters)
     }
 }

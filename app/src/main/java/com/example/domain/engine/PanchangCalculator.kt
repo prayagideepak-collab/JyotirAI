@@ -256,7 +256,7 @@ object PanchangCalculator {
         rsmi: Int, // SweConst.SE_CALC_RISE or SET
         originalDate: ZonedDateTime
     ): ZonedDateTime? {
-        val geopos = doubleArrayOf(location.longitude, location.latitude, location.altitudeMeters)
+        val geopos = doubleArrayOf(location.longitude, location.latitude, location.altitudeMeters ?: 0.0)
         val flags = SweConst.SEFLG_MOSEPH
         val targetDate = originalDate.toLocalDate()
         

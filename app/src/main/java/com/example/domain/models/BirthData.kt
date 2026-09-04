@@ -11,7 +11,7 @@ data class BirthLocation(
     val latitude: Double,
     val longitude: Double,
     val placeName: String,
-    val altitudeMeters: Double = 0.0,
+    val altitudeMeters: Double? = null,
     val timeZoneId: String? = null,
     val isVerified: Boolean = false,
     val source: String = "manual"
@@ -21,7 +21,9 @@ data class BirthLocation(
         require(longitude in -180.0..180.0) { "Longitude must be between -180 and 180" }
         require(!latitude.isNaN() && !latitude.isInfinite()) { "Latitude must be finite" }
         require(!longitude.isNaN() && !longitude.isInfinite()) { "Longitude must be finite" }
-        require(!altitudeMeters.isNaN() && !altitudeMeters.isInfinite()) { "Altitude must be finite" }
+        altitudeMeters?.let {
+            require(!it.isNaN() && !it.isInfinite()) { "Altitude must be finite" }
+        }
         require(placeName.isNotBlank()) { "Place name must not be blank" }
         timeZoneId?.let {
             requireCatchingZoneId(it)

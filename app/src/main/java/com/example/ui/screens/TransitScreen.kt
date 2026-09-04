@@ -107,13 +107,13 @@ fun TransitScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = transitDateTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            text = transitDateTime?.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")) ?: "Loading...",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Zone: ${transitDateTime.zone.id}",
+                            text = "Zone: ${transitDateTime?.zone?.id ?: ""}",
                             style = MaterialTheme.typography.labelSmall,
                             color = AccentAmber
                         )
@@ -515,7 +515,7 @@ fun TransitScreen(
     // Date & Time Picker Dialog
     if (showDatePicker) {
         TransitDateTimePickerDialog(
-            initialDateTime = transitDateTime,
+            initialDateTime = transitDateTime ?: java.time.ZonedDateTime.now(),
             onDismiss = { showDatePicker = false },
             onConfirm = { newDateTime ->
                 showDatePicker = false
