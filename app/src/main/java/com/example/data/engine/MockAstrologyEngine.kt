@@ -6,7 +6,7 @@ import java.time.ZonedDateTime
 
 /**
  * Test / Fallback mock for unit test environments where ephemeris is not required.
- * 
+ *
  * Note: The production engine is [SwissEphAstrologyEngine].
  */
 class MockAstrologyEngine : AstrologyEngine {
@@ -31,5 +31,12 @@ class MockAstrologyEngine : AstrologyEngine {
         natalProfile: AstrologyProfile?
     ): Result<TransitSnapshot> {
         return Result.failure(AppError.CalculationError("Mock engine: For testing only. Use SwissEphAstrologyEngine for production calculations."))
+    }
+
+    override suspend fun calculatePanchang(
+        date: ZonedDateTime,
+        location: BirthLocation
+    ): Result<com.example.domain.models.PanchangSnapshot> {
+        return Result.failure(AppError.CalculationError("Mock engine: For testing only."))
     }
 }

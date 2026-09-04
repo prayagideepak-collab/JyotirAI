@@ -38,7 +38,7 @@ fun JyotishNavGraph(
                 onNavigateToHome = { navController.navigate(Screen.Home.route) }
             )
         }
-        composable(Screen.Panchang.route) { PanchangScreen() }
+        composable(Screen.Panchang.route) { PanchangScreen(viewModel = astrologyViewModel) }
         composable(Screen.Muhurta.route) { MuhurtaScreen() }
         composable(Screen.Compatibility.route) { CompatibilityScreen() }
         composable(Screen.Numerology.route) { NumerologyScreen() }

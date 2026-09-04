@@ -42,5 +42,13 @@ interface AstrologyEngine {
         location: BirthLocation,
         natalProfile: AstrologyProfile? = null
     ): Result<TransitSnapshot>
+
+    /**
+     * Calculates deterministic Vedic Panchang for a specific date, time, and location.
+     */
+    suspend fun calculatePanchang(
+        date: ZonedDateTime,
+        location: BirthLocation
+    ): Result<com.example.domain.models.PanchangSnapshot>
 }
 

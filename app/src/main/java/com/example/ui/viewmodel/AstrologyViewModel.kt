@@ -28,6 +28,12 @@ sealed interface DashaUiState {
     data class Error(val message: String) : DashaUiState
 }
 
+sealed interface PanchangUiState {
+    data object Loading : PanchangUiState
+    data class Success(val snapshot: PanchangSnapshot) : PanchangUiState
+    data class Error(val message: String) : PanchangUiState
+}
+
 sealed interface TransitUiState {
     data object Loading : TransitUiState
     data class Success(val snapshot: TransitSnapshot) : TransitUiState
@@ -72,7 +78,14 @@ class AstrologyViewModel(
     private val _selectedTransitPlanet = MutableStateFlow<TransitPosition?>(null)
     val selectedTransitPlanet: StateFlow<TransitPosition?> = _selectedTransitPlanet.asStateFlow()
 
+    // Panchang State
+    private val _panchangUiState = MutableStateFlow<PanchangUiState>(PanchangUiState.Loading)
+    val panchangUiState: StateFlow<PanchangUiState> = _panchangUiState.asStateFlow()
+    private val _panchangDateTime = MutableStateFlow<ZonedDateTime>(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")))
+    val panchangDateTime: StateFlow<ZonedDateTime> = _panchangDateTime.asStateFlow()
+
     init {
+        loadPanchang()
         loadTransits()
     }
 
@@ -157,6 +170,32 @@ class AstrologyViewModel(
         _dashaUiState.value = DashaUiState.Empty
         _expandedMahadashaPlanet.value = null
         loadTransits(natalProfile = null)
+    }
+
+    fun loadPanchang(
+        dateTime: ZonedDateTime? = null,
+        location: BirthLocation? = null
+    ) {
+        val targetZoned = dateTime ?: _panchangDateTime.value
+        _panchangDateTime.value = targetZoned
+        val targetLocation = location
+            ?: _currentBirthData.value?.location
+            ?: BirthLocation(28.6139, 77.2090, "New Delhi, India")
+        viewModelScope.launch {
+            _panchangUiState.value = PanchangUiState.Loading
+            val result = astrologyEngine.calculatePanchang(targetZoned, targetLocation)
+            result.fold(
+                onSuccess = { snapshot -> _panchangUiState.value = PanchangUiState.Success(snapshot) },
+                onFailure = { error -> _panchangUiState.value = PanchangUiState.Error(error.message ?: "Failed") }
+            )
+        }
+    }
+
+    fun setPanchangDateTime(dateTime: ZonedDateTime) { loadPanchang(dateTime = dateTime) }
+    fun shiftPanchangDays(days: Long) { loadPanchang(dateTime = _panchangDateTime.value.plusDays(days)) }
+    fun resetPanchangToNow() {
+        val zone = _currentBirthData.value?.timeZone ?: _panchangDateTime.value.zone ?: ZoneId.of("Asia/Kolkata")
+        loadPanchang(dateTime = ZonedDateTime.now(zone))
     }
 
     fun loadTransits(

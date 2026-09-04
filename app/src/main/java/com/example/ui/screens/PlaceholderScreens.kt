@@ -1,74 +1,48 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.ui.theme.SurfaceCard
-import com.example.ui.theme.BorderSubtle
 
 @Composable
 fun PlaceholderScreen(title: String, description: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
-                .background(SurfaceCard)
-                .border(1.dp, BorderSubtle, RoundedCornerShape(32.dp))
-                .padding(32.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
 @Composable
-fun PredictionsScreen() = PlaceholderScreen("Predictions", "Phase 7 & 8 feature. Requires deterministic calculation engine.")
+fun PredictionsScreen() = PlaceholderScreen("Insights & Predictions", "Phase 7 feature. Deterministic interpretation models based on classical texts.")
 
 @Composable
-fun PanchangScreen() = PlaceholderScreen("Daily Panchang", "Phase 9 feature. Tithi, Yoga, Karana, and specific Muhurtas.")
+fun MuhurtaScreen() = PlaceholderScreen("Muhurta Explorer", "Phase 9 feature. Favorable timing calculation for life events.")
 
 @Composable
-fun MuhurtaScreen() = PlaceholderScreen("Muhurta", "Phase 10 feature. Astrological time selection.")
+fun CompatibilityScreen() = PlaceholderScreen("Kundali Milan", "Phase 8 feature. Ashta Kuta matching and deeper relationship insights.")
 
 @Composable
-fun CompatibilityScreen() = PlaceholderScreen("Compatibility", "Phase 11 feature. Kundli matching and Guna Milan.")
+fun NumerologyScreen() = PlaceholderScreen("Numerology", "Phase 10 feature. Chaldean and Pythagorean models derived from birth details.")
 
 @Composable
-fun NumerologyScreen() = PlaceholderScreen("Numerology", "Phase 12 feature. Path and Destiny calculations.")
-
-@Composable
-fun SettingsScreen() = PlaceholderScreen("Settings", "App preferences and privacy controls.")
+fun SettingsScreen() = PlaceholderScreen("Settings", "App preferences, Ayanamsa selection, and language configuration.")
