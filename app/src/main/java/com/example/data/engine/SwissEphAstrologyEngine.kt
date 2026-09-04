@@ -286,21 +286,12 @@ class SwissEphAstrologyEngine : AstrologyEngine {
         location: BirthLocation
     ): Result<com.example.domain.models.PanchangSnapshot> {
         return try {
-            val snapshot = PanchangCalculator.calculatePanchang(date, location, swissEphThreadLocal.get()) { utcIso ->
-                CalculationMetadata(
-                    ephemerisEngine = "Swiss Ephemeris (Moshier Sidereal)",
-                    ayanamsaName = "Lahiri (Chitra Paksha)",
-                    ayanamsaDegree = swissEphThreadLocal.get().swe_get_ayanamsa_ut(date.toInstant().toEpochMilli() / 86400000.0 + 2440587.5),
-                    julianDayUt = date.toInstant().toEpochMilli() / 86400000.0 + 2440587.5,
-                    calculatedUtcIso = utcIso
-                )
-            }
+            val snapshot = PanchangCalculator.calculatePanchang(date, location, swissEphThreadLocal.get())
             Result.success(snapshot)
         } catch (e: Exception) {
             Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate Panchang"))
         }
     }
-
     override suspend fun calculateTransitSnapshot(
         transitDateTime: ZonedDateTime,
         location: BirthLocation,
