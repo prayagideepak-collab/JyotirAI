@@ -8,10 +8,11 @@ import kotlinx.coroutines.withContext
 
 object OpenMeteoProvider {
     suspend fun getTimezoneAndElevation(lat: Double, lon: Double): Pair<String?, Double?> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
         try {
             val urlString = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=false&timezone=auto"
             val url = URL(urlString)
-            val connection = url.openConnection() as HttpURLConnection
+            connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
@@ -27,6 +28,8 @@ object OpenMeteoProvider {
             }
         } catch (e: Exception) {
             Pair(null, null)
+        } finally {
+            connection?.disconnect()
         }
     }
 }
