@@ -1,22 +1,30 @@
 package com.example.ui.navigation
 
+import android.app.Application
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.ui.screens.*
 import com.example.ui.viewmodel.AstrologyViewModel
+import com.example.ui.viewmodel.AstrologyViewModelFactory
 
 @Composable
 fun JyotishNavGraph(
     navController: NavHostController,
-    innerPadding: PaddingValues,
-    astrologyViewModel: AstrologyViewModel = viewModel()
+    innerPadding: PaddingValues
 ) {
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+    val astrologyViewModel: AstrologyViewModel = viewModel(
+        factory = AstrologyViewModelFactory(application)
+    )
+
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,

@@ -301,7 +301,7 @@ class SwissEphAstrologyEngine : AstrologyEngine {
             validateTransitInput(transitDateTime, location)
 
             val natalRefKey = if (natalProfile != null) "${natalProfile.moonSignIndex}_${natalProfile.lagnaSignIndex}" else "none"
-            val cacheKey = "${transitDateTime.toInstant().toEpochMilli()}_${location.latitude}_${location.longitude}_$natalRefKey"
+            val cacheKey = "${transitDateTime.toInstant().toEpochMilli()}_${location.latitude}_${location.longitude}_${location.altitudeMeters}_$natalRefKey"
             transitCache[cacheKey]?.let { return Result.success(it) }
 
             val utcDateTime = transitDateTime.withZoneSameInstant(ZoneOffset.UTC)

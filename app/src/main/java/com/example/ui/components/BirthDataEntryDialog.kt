@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,50 +28,35 @@ import com.example.domain.models.BirthData
 import com.example.domain.models.BirthLocation
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.SurfaceCard
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-
-data class CityPreset(
-    val name: String,
-    val lat: Double,
-    val lon: Double,
-    val timeZone: String
-)
-
-val CITY_PRESETS = listOf(
-    CityPreset("New Delhi", 28.6139, 77.2090, "Asia/Kolkata"),
-    CityPreset("Mumbai", 19.0760, 72.8777, "Asia/Kolkata"),
-    CityPreset("Bengaluru", 12.9716, 77.5946, "Asia/Kolkata"),
-    CityPreset("Varanasi", 25.3176, 82.9739, "Asia/Kolkata"),
-    CityPreset("London", 51.5074, -0.1278, "Europe/London"),
-    CityPreset("New York", 40.7128, -74.0060, "America/New_York"),
-    CityPreset("San Francisco", 37.7749, -122.4194, "America/Los_Angeles"),
-    CityPreset("Tokyo", 35.6762, 139.6503, "Asia/Tokyo")
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BirthDataEntryDialog(
     initialData: BirthData? = null,
     onDismiss: () -> Unit,
-    onSubmit: (BirthData) -> Unit
+    onSubmit: (BirthData) -> Unit,
+    onResolveLocation: suspend (String) -> Result<List<BirthLocation>>
 ) {
     var name by remember { mutableStateOf(initialData?.name ?: "User") }
     var year by remember { mutableStateOf(initialData?.date?.year?.toString() ?: "1995") }
     var month by remember { mutableStateOf(initialData?.date?.monthValue?.toString() ?: "8") }
     var day by remember { mutableStateOf(initialData?.date?.dayOfMonth?.toString() ?: "15") }
-
     var hour by remember { mutableStateOf(initialData?.time?.hour?.toString() ?: "14") }
     var minute by remember { mutableStateOf(initialData?.time?.minute?.toString() ?: "30") }
     var second by remember { mutableStateOf(initialData?.time?.second?.toString() ?: "0") }
-
-    var placeName by remember { mutableStateOf(initialData?.location?.placeName ?: "New Delhi, India") }
-    var latitude by remember { mutableStateOf(initialData?.location?.latitude?.toString() ?: "28.6139") }
-    var longitude by remember { mutableStateOf(initialData?.location?.longitude?.toString() ?: "77.2090") }
-    var timeZoneId by remember { mutableStateOf(initialData?.timeZone?.id ?: "Asia/Kolkata") }
-
+    
+    var placeNameQuery by remember { mutableStateOf(initialData?.location?.placeName ?: "") }
+    var resolvedLocation by remember { mutableStateOf<BirthLocation?>(initialData?.location) }
+    var resolvingLocation by remember { mutableStateOf(false) }
+    var locationError by remember { mutableStateOf<String?>(null) }
+    var ambiguousLocations by remember { mutableStateOf<List<BirthLocation>>(emptyList()) }
+    
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -123,26 +110,20 @@ fun BirthDataEntryDialog(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Date of Birth
-                Text(
-                    text = "Date of Birth (YYYY - MM - DD)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                // Date
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedTextField(
                         value = year,
-                        onValueChange = { year = it.filter { c -> c.isDigit() }.take(4) },
-                        label = { Text("Year") },
+                        onValueChange = { year = it },
+                        label = { Text("YYYY") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
-                            .weight(1.3f)
+                            .weight(1.2f)
                             .testTag("input_year"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -151,8 +132,8 @@ fun BirthDataEntryDialog(
                     )
                     OutlinedTextField(
                         value = month,
-                        onValueChange = { month = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Month") },
+                        onValueChange = { month = it },
+                        label = { Text("MM") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -164,8 +145,8 @@ fun BirthDataEntryDialog(
                     )
                     OutlinedTextField(
                         value = day,
-                        onValueChange = { day = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Day") },
+                        onValueChange = { day = it },
+                        label = { Text("DD") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -177,23 +158,17 @@ fun BirthDataEntryDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Time of Birth
-                Text(
-                    text = "Time of Birth (24-Hour: HH : MM : SS)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                // Time
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedTextField(
                         value = hour,
-                        onValueChange = { hour = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Hour") },
+                        onValueChange = { hour = it },
+                        label = { Text("HH (0-23)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -205,8 +180,8 @@ fun BirthDataEntryDialog(
                     )
                     OutlinedTextField(
                         value = minute,
-                        onValueChange = { minute = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Min") },
+                        onValueChange = { minute = it },
+                        label = { Text("MM") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -218,8 +193,8 @@ fun BirthDataEntryDialog(
                     )
                     OutlinedTextField(
                         value = second,
-                        onValueChange = { second = it.filter { c -> c.isDigit() }.take(2) },
-                        label = { Text("Sec") },
+                        onValueChange = { second = it },
+                        label = { Text("SS") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -232,108 +207,131 @@ fun BirthDataEntryDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = BorderSubtle)
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Quick City Presets
+                // Verified Location Resolution
                 Text(
-                    text = "Quick City Presets",
+                    text = "Location",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(CITY_PRESETS) { preset ->
-                        FilterChip(
-                            selected = placeName.startsWith(preset.name),
-                            onClick = {
-                                placeName = "${preset.name}"
-                                latitude = preset.lat.toString()
-                                longitude = preset.lon.toString()
-                                timeZoneId = preset.timeZone
-                            },
-                            label = { Text(preset.name, style = MaterialTheme.typography.labelSmall) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                selectedLabelColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Location Details
-                OutlinedTextField(
-                    value = placeName,
-                    onValueChange = { placeName = it },
-                    label = { Text("Place / City Name") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_place"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = BorderSubtle
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedTextField(
-                        value = latitude,
-                        onValueChange = { latitude = it },
-                        label = { Text("Latitude (-90..90)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        value = placeNameQuery,
+                        onValueChange = { 
+                            placeNameQuery = it
+                            resolvedLocation = null
+                        },
+                        label = { Text("City / Place") },
+                        singleLine = true,
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("input_latitude"),
+                            .testTag("input_place"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = BorderSubtle
-                        )
+                        ),
+                        trailingIcon = {
+                            if (resolvedLocation != null) {
+                                Icon(Icons.Default.CheckCircle, "Verified", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     )
-                    OutlinedTextField(
-                        value = longitude,
-                        onValueChange = { longitude = it },
-                        label = { Text("Longitude (-180..180)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("input_longitude"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = BorderSubtle
-                        )
+                    
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                resolvingLocation = true
+                                locationError = null
+                                ambiguousLocations = emptyList()
+                                val result = onResolveLocation(placeNameQuery)
+                                result.fold(
+                                    onSuccess = { locations ->
+                                        if (locations.size == 1) {
+                                            resolvedLocation = locations.first()
+                                            placeNameQuery = resolvedLocation!!.placeName
+                                        } else if (locations.isEmpty()) {
+                                            locationError = "Location not found."
+                                        } else {
+                                            ambiguousLocations = locations
+                                        }
+                                    },
+                                    onFailure = { err ->
+                                        locationError = err.message ?: "Failed to resolve location."
+                                    }
+                                )
+                                resolvingLocation = false
+                            }
+                        },
+                        enabled = !resolvingLocation && placeNameQuery.isNotBlank() && resolvedLocation == null,
+                        modifier = Modifier.testTag("resolve_location_button")
+                    ) {
+                        if (resolvingLocation) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Resolve")
+                        }
+                    }
+                }
+                
+                if (locationError != null) {
+                    Text(
+                        text = locationError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = timeZoneId,
-                    onValueChange = { timeZoneId = it },
-                    label = { Text("Time Zone (e.g. Asia/Kolkata, UTC)") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_timezone"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = BorderSubtle
+                if (ambiguousLocations.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Multiple matches found. Select one:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SurfaceCard, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ambiguousLocations.forEach { loc ->
+                            Text(
+                                text = "${loc.placeName} (${loc.timeZoneId ?: "Unknown TZ"})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        resolvedLocation = loc
+                                        placeNameQuery = loc.placeName
+                                        ambiguousLocations = emptyList()
+                                    }
+                                    .padding(8.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (resolvedLocation != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Verified: ${resolvedLocation!!.latitude}, ${resolvedLocation!!.longitude} (${resolvedLocation!!.timeZoneId ?: "System TZ"})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -359,6 +357,9 @@ fun BirthDataEntryDialog(
                     Button(
                         onClick = {
                             try {
+                                if (resolvedLocation == null) {
+                                    throw IllegalArgumentException("Please resolve the location first.")
+                                }
                                 val parsedYear = year.toIntOrNull() ?: throw IllegalArgumentException("Invalid year")
                                 val parsedMonth = month.toIntOrNull() ?: throw IllegalArgumentException("Invalid month")
                                 val parsedDay = day.toIntOrNull() ?: throw IllegalArgumentException("Invalid day")
@@ -369,21 +370,18 @@ fun BirthDataEntryDialog(
                                 val parsedSecond = second.toIntOrNull() ?: 0
                                 val parsedTime = LocalTime.of(parsedHour, parsedMinute, parsedSecond)
 
-                                val parsedLat = latitude.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid latitude")
-                                val parsedLon = longitude.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid longitude")
-                                val location = BirthLocation(parsedLat, parsedLon, placeName.ifBlank { "Birth Location" })
-
+                                val zoneIdString = resolvedLocation!!.timeZoneId
                                 val zone = try {
-                                    ZoneId.of(timeZoneId.trim())
+                                    if (zoneIdString != null) ZoneId.of(zoneIdString.trim()) else ZoneId.systemDefault()
                                 } catch (e: Exception) {
-                                    throw IllegalArgumentException("Unknown TimeZone: $timeZoneId. Use formats like Asia/Kolkata, UTC, America/New_York.")
+                                    throw IllegalArgumentException("Unknown TimeZone: $zoneIdString.")
                                 }
 
                                 val birthData = BirthData(
                                     name = name.ifBlank { "User" },
                                     date = parsedDate,
                                     time = parsedTime,
-                                    location = location,
+                                    location = resolvedLocation!!,
                                     timeZone = zone
                                 )
                                 onSubmit(birthData)

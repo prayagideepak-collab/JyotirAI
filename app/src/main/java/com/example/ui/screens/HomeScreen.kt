@@ -1,4 +1,5 @@
 package com.example.ui.screens
+import kotlin.coroutines.suspendCoroutine
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -249,6 +250,13 @@ fun HomeScreen(
             onSubmit = { data ->
                 showDialog = false
                 viewModel.calculateBirthChart(data)
+            },
+            onResolveLocation = { query -> 
+                kotlin.coroutines.suspendCoroutine { cont ->
+                    viewModel.resolveLocation(query) { result ->
+                        cont.resumeWith(Result.success(result))
+                    }
+                }
             }
         )
     }

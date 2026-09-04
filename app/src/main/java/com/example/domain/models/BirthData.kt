@@ -5,16 +5,35 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Validated geographical coordinates and place name.
+ * Validated geographical coordinates, place name, and timezone.
  */
 data class BirthLocation(
     val latitude: Double,
     val longitude: Double,
-    val placeName: String
+    val placeName: String,
+    val altitudeMeters: Double = 0.0,
+    val timeZoneId: String? = null,
+    val isVerified: Boolean = false,
+    val source: String = "manual"
 ) {
     init {
         require(latitude in -90.0..90.0) { "Latitude must be between -90 and 90" }
         require(longitude in -180.0..180.0) { "Longitude must be between -180 and 180" }
+        require(!latitude.isNaN() && !latitude.isInfinite()) { "Latitude must be finite" }
+        require(!longitude.isNaN() && !longitude.isInfinite()) { "Longitude must be finite" }
+        require(!altitudeMeters.isNaN() && !altitudeMeters.isInfinite()) { "Altitude must be finite" }
+        require(placeName.isNotBlank()) { "Place name must not be blank" }
+        timeZoneId?.let {
+            requireCatchingZoneId(it)
+        }
+    }
+    
+    private fun requireCatchingZoneId(zoneId: String) {
+        try {
+            ZoneId.of(zoneId)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid timezone ID: $zoneId")
+        }
     }
 }
 

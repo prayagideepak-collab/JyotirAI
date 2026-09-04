@@ -1,6 +1,8 @@
 package com.example.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.example.domain.location.LocationResolver
+import com.example.domain.location.LocationRepository
 import androidx.lifecycle.viewModelScope
 import com.example.data.engine.SwissEphAstrologyEngine
 import com.example.domain.engine.AstrologyEngine
@@ -41,8 +43,15 @@ sealed interface TransitUiState {
 }
 
 class AstrologyViewModel(
-    private val astrologyEngine: AstrologyEngine = SwissEphAstrologyEngine()
+    private val astrologyEngine: AstrologyEngine,
+    private val locationResolver: LocationResolver,
+    private val locationRepository: LocationRepository
 ) : ViewModel() {
+//
+    
+
+    private val _savedLocation = MutableStateFlow<BirthLocation?>(null)
+    val savedLocation: StateFlow<BirthLocation?> = _savedLocation.asStateFlow()
 
     private val _uiState = MutableStateFlow<AstrologyUiState>(AstrologyUiState.Empty)
     val uiState: StateFlow<AstrologyUiState> = _uiState.asStateFlow()
@@ -85,13 +94,43 @@ class AstrologyViewModel(
     val panchangDateTime: StateFlow<ZonedDateTime> = _panchangDateTime.asStateFlow()
 
     init {
-        loadPanchang()
-        loadTransits()
+        viewModelScope.launch {
+            val loc = locationRepository.getVerifiedLocation()
+            _savedLocation.value = loc
+            
+            // Re-initialize timezones if location found
+            val zone = loc?.timeZoneId?.let { ZoneId.of(it) } ?: ZoneId.systemDefault()
+            _panchangDateTime.value = ZonedDateTime.now(zone)
+            _transitDateTime.value = ZonedDateTime.now(zone)
+            
+            loadPanchang()
+            loadTransits()
+        }
     }
+    
+    fun resolveLocation(query: String, onResult: (Result<List<BirthLocation>>) -> Unit) {
+        viewModelScope.launch {
+            val res = locationResolver.resolveLocation(query)
+            onResult(res)
+        }
+    }
+    
+    fun saveVerifiedLocation(location: BirthLocation) {
+        viewModelScope.launch {
+            locationRepository.saveVerifiedLocation(location)
+            _savedLocation.value = location
+            // Reload with new location
+            loadPanchang(location = location)
+            loadTransits(location = location)
+        }
+    }
+
 
     fun calculateBirthChart(birthData: BirthData) {
         _currentBirthData.value = birthData
         _uiState.value = AstrologyUiState.Calculating
+        
+        saveVerifiedLocation(birthData.location)
 
         viewModelScope.launch {
             val result = astrologyEngine.calculateProfile(birthData)
@@ -180,7 +219,12 @@ class AstrologyViewModel(
         _panchangDateTime.value = targetZoned
         val targetLocation = location
             ?: _currentBirthData.value?.location
-            ?: BirthLocation(28.6139, 77.2090, "New Delhi, India")
+            ?: _savedLocation.value
+        
+        if (targetLocation == null) {
+            _panchangUiState.value = PanchangUiState.Error("Location not set. Please select a location.")
+            return
+        }
         viewModelScope.launch {
             _panchangUiState.value = PanchangUiState.Loading
             val result = astrologyEngine.calculatePanchang(targetZoned, targetLocation)
@@ -208,7 +252,12 @@ class AstrologyViewModel(
 
         val targetLocation = location
             ?: _currentBirthData.value?.location
-            ?: BirthLocation(28.6139, 77.2090, "New Delhi, India")
+            ?: _savedLocation.value
+        
+        if (targetLocation == null) {
+            _transitUiState.value = TransitUiState.Error("Location not set. Please select a location.")
+            return
+        }
 
         val profileToUse = natalProfile ?: (_uiState.value as? AstrologyUiState.Success)?.profile
 
@@ -261,13 +310,15 @@ class AstrologyViewModel(
      */
     fun loadReferenceProfile() {
         val referenceData = BirthData(
-            name = "Aarav Sharma",
+            name = "Aarav Sharma (Reference)",
             date = LocalDate.of(1995, 8, 15),
             time = LocalTime.of(14, 30, 0),
             location = BirthLocation(
                 latitude = 28.6139,
                 longitude = 77.2090,
-                placeName = "New Delhi, India"
+                placeName = "New Delhi, India",
+                isVerified = true,
+                source = "reference"
             ),
             timeZone = ZoneId.of("Asia/Kolkata")
         )
