@@ -170,10 +170,6 @@ fun TransitDetailDialog(
                                 label = "From Natal Lagna (${natal.lagnaSign})",
                                 value = relation.lagnaRelationDescription ?: "N/A"
                             )
-                            DetailItem(
-                                label = "Natal Reference Native",
-                                value = natal.nativeName
-                            )
                         } else {
                             Text(
                                 text = "No natal chart is currently active. Enter birth details on the Home screen to view relative Gochar positions from your natal Moon and Lagna.",

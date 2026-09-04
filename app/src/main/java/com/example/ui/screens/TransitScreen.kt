@@ -290,7 +290,7 @@ fun TransitScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Active Natal Reference: ${natal.nativeName}",
+                                    text = "Active Natal Reference",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = AccentAmber

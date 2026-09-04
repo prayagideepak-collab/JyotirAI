@@ -68,7 +68,6 @@ data class TransitPosition(
  * Natal Reference Context against which planetary transits (Gochar) are compared.
  */
 data class NatalTransitReference(
-    val nativeName: String,
     val moonSign: String,
     val moonSignIndex: Int,
     val moonNakshatra: String,

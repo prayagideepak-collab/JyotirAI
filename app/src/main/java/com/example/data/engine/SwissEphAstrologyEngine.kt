@@ -288,7 +288,8 @@ class SwissEphAstrologyEngine : AstrologyEngine {
         return try {
             validateTransitInput(transitDateTime, location)
 
-            val cacheKey = "${transitDateTime.toInstant().toEpochMilli()}_${location.latitude}_${location.longitude}_${natalProfile?.birthData?.hashCode() ?: "none"}"
+            val natalRefKey = if (natalProfile != null) "${natalProfile.moonSignIndex}_${natalProfile.lagnaSignIndex}" else "none"
+            val cacheKey = "${transitDateTime.toInstant().toEpochMilli()}_${location.latitude}_${location.longitude}_$natalRefKey"
             transitCache[cacheKey]?.let { return Result.success(it) }
 
             val utcDateTime = transitDateTime.withZoneSameInstant(ZoneOffset.UTC)
@@ -425,7 +426,6 @@ class SwissEphAstrologyEngine : AstrologyEngine {
 
             val natalReference = natalProfile?.let {
                 NatalTransitReference(
-                    nativeName = it.birthData.name,
                     moonSign = it.moonSign,
                     moonSignIndex = it.moonSignIndex,
                     moonNakshatra = "${it.nakshatra} (Pada ${it.nakshatraPada})",

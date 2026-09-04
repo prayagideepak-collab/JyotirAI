@@ -187,7 +187,6 @@ class TransitTest {
         )
         val snapshot = transitResult.getOrThrow()
         assertNotNull(snapshot.natalReference)
-        assertEquals("Aarav Sharma", snapshot.natalReference?.nativeName)
         assertEquals(profile.moonSign, snapshot.natalReference?.moonSign)
         assertEquals(profile.lagna, snapshot.natalReference?.lagnaSign)
     }
@@ -436,5 +435,26 @@ class TransitTest {
 
         assertTrue(resWinter.isSuccess)
         assertTrue(resSummer.isSuccess)
+    }
+
+    // 32. Privacy: Transit calculation does not require or expose full birth name
+    @Test
+    fun `test 32 - Privacy Transit calculation does not expose birth name`() = runBlocking {
+        val profileResult = engine.calculateProfile(sampleBirthData)
+        val profile = profileResult.getOrThrow()
+        
+        val transitResult = engine.calculateTransitSnapshot(
+            sampleTransitMoment,
+            transitLocation,
+            profile
+        )
+        val snapshot = transitResult.getOrThrow()
+        
+        // Ensure NatalTransitReference has no nativeName field exposing PII
+        assertNotNull(snapshot.natalReference)
+        val fields = snapshot.natalReference!!::class.java.declaredFields
+        fields.forEach { field ->
+            assertFalse("NatalTransitReference should not contain name", field.name.contains("name", ignoreCase = true))
+        }
     }
 }
