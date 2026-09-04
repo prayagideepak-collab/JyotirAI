@@ -109,6 +109,14 @@ object PanchangCalculator {
             houseSystem = null
         )
 
+        val muhurta = calculateMuhurta(sunrise, sunset, vara)
+        val lunarObservance = LunarObservance(
+            isEkadashi = tithi.index == 11 || tithi.index == 26,
+            isPurnima = tithi.index == 15,
+            isAmavasya = tithi.index == 30,
+            description = null
+        )
+
         return PanchangSnapshot(
             requestedDateTime = date,
             location = location,
@@ -122,6 +130,8 @@ object PanchangCalculator {
             sunset = sunset,
             moonSign = moonSign,
             sunSign = sunSign,
+            muhurta = muhurta,
+            lunarObservance = lunarObservance,
             metadata = metadata
         )
     }
@@ -254,6 +264,55 @@ object PanchangCalculator {
         }
 
         return Karana(karanaIndex, name, isFixed, remainingPct.coerceIn(0.0, 1.0))
+    }
+
+    
+    private fun calculateMuhurta(
+        sunrise: ZonedDateTime?,
+        sunset: ZonedDateTime?,
+        vara: Vara
+    ): MuhurtaInfo? {
+        if (sunrise == null || sunset == null || !sunrise.isBefore(sunset)) {
+            return null
+        }
+        
+        val daytimeMillis = java.time.Duration.between(sunrise, sunset).toMillis()
+        val partMillis = daytimeMillis / 8
+        
+        val rahukaalIndex = when (vara) {
+            Vara.SOMAVARA -> 1 // 2nd part
+            Vara.SHANIVARA -> 2 // 3rd part
+            Vara.SHUKRAVARA -> 3 // 4th part
+            Vara.BUDHAVARA -> 4 // 5th part
+            Vara.GURUVARA -> 5 // 6th part
+            Vara.MANGALAVARA -> 6 // 7th part
+            Vara.RAVIVARA -> 7 // 8th part
+        }
+        
+        val rahuStart = sunrise.plusNanos((partMillis * rahukaalIndex * 1_000_000).toLong())
+        val rahuEnd = rahuStart.plusNanos((partMillis * 1_000_000).toLong())
+        
+        val rahukaal = TimeInterval(
+            start = rahuStart,
+            end = rahuEnd,
+            name = "Rahukaal"
+        )
+        
+        val brahmaStart = sunrise.minusMinutes(96)
+        val brahmaEnd = sunrise.minusMinutes(48)
+        
+        val brahmaMuhurta = TimeInterval(
+            start = brahmaStart,
+            end = brahmaEnd,
+            name = "Brahma Muhurta"
+        )
+        
+        return MuhurtaInfo(
+            rahukaal = rahukaal,
+            brahmaMuhurta = brahmaMuhurta,
+            abhijitMuhurta = null,
+            additionalMuhurtas = emptyList()
+        )
     }
 
     private fun calculateRiseSet(

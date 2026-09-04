@@ -34,7 +34,6 @@ class PanchangTest {
 
     @Test
     fun `test Sunrise and Sunset exactly match local date without rolling over`() = runBlocking {
-        // Edge case: Test around midnight transitions or far longitudes
         val date = ZonedDateTime.of(LocalDate.of(2026, 1, 1), LocalTime.of(12, 0), ZoneId.of("Asia/Kolkata"))
         val location = BirthLocation(28.6139, 77.2090, "New Delhi")
         val result = classUnderTest.calculatePanchang(date, location).getOrThrow()
@@ -72,7 +71,6 @@ class PanchangTest {
         val location = BirthLocation(28.6139, 77.2090, "New Delhi")
         val result = classUnderTest.calculatePanchang(date, location).getOrThrow()
         
-        // Assert snapshot contains correct metadata and domain entities
         assertEquals(date, result.requestedDateTime)
         assertEquals(location, result.location)
         
@@ -110,5 +108,37 @@ class PanchangTest {
             assertFalse(name.contains("nativename"))
             assertFalse(name.contains("fullname"))
         }
+    }
+
+    @Test
+    fun `test Muhurta calculation - Rahukaal and Brahma Muhurta`() = runBlocking {
+        val date = ZonedDateTime.of(LocalDate.of(2026, 9, 4), LocalTime.of(12, 0), ZoneId.of("Asia/Kolkata")) // Friday
+        val location = BirthLocation(28.6139, 77.2090, "New Delhi")
+        val result = classUnderTest.calculatePanchang(date, location).getOrThrow()
+        
+        assertNotNull(result.muhurta)
+        val rahukaal = result.muhurta?.rahukaal
+        assertNotNull(rahukaal)
+        
+        assertTrue(rahukaal!!.start.isAfter(result.sunrise) || rahukaal.start.isEqual(result.sunrise))
+        assertTrue(rahukaal.end.isBefore(result.sunset) || rahukaal.end.isEqual(result.sunset))
+        
+        val brahma = result.muhurta?.brahmaMuhurta
+        assertNotNull(brahma)
+        assertEquals(result.sunrise!!.minusMinutes(96), brahma!!.start)
+        assertEquals(result.sunrise!!.minusMinutes(48), brahma.end)
+    }
+
+    @Test
+    fun `test Lunar Observance detection`() = runBlocking {
+        val date = ZonedDateTime.of(LocalDate.of(2026, 2, 17), LocalTime.of(12, 0), ZoneId.of("Asia/Kolkata")) 
+        val location = BirthLocation(28.6139, 77.2090, "New Delhi")
+        val result = classUnderTest.calculatePanchang(date, location).getOrThrow()
+        
+        assertNotNull(result.lunarObservance)
+        val obs = result.lunarObservance!!
+        assertEquals(result.tithi.index == 15, obs.isPurnima)
+        assertEquals(result.tithi.index == 30, obs.isAmavasya)
+        assertEquals(result.tithi.index == 11 || result.tithi.index == 26, obs.isEkadashi)
     }
 }

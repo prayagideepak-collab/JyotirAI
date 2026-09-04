@@ -18,8 +18,33 @@ data class PanchangSnapshot(
     val sunset: ZonedDateTime?,
     val moonSign: Rashi?,
     val sunSign: Rashi?,
+
+    val muhurta: MuhurtaInfo?,
+    val lunarObservance: LunarObservance?,
     val metadata: CalculationMetadata
 )
+
+data class TimeInterval(
+    val start: ZonedDateTime,
+    val end: ZonedDateTime,
+    val name: String,
+    val description: String? = null
+)
+
+data class MuhurtaInfo(
+    val rahukaal: TimeInterval?,
+    val brahmaMuhurta: TimeInterval?,
+    val abhijitMuhurta: TimeInterval? = null,
+    val additionalMuhurtas: List<TimeInterval> = emptyList()
+)
+
+data class LunarObservance(
+    val isEkadashi: Boolean,
+    val isPurnima: Boolean,
+    val isAmavasya: Boolean,
+    val description: String? = null
+)
+
 
 enum class Vara(val sanskritName: String, val englishName: String) {
     RAVIVARA("Ravivara", "Sunday"),

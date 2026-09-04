@@ -68,24 +68,56 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Location: ${panchang.location.placeName}", style = MaterialTheme.typography.titleSmall)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Location: ${panchang.location.placeName}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(16.dp))
                             
+                            Text("Panchang", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
                             PanchangRow("Vara (Weekday)", "${panchang.vara.sanskritName} (${panchang.vara.englishName})")
                             PanchangRow("Tithi", "${panchang.tithi.name} (${panchang.paksha}) - ${(panchang.tithi.remainingPercentage * 100).toInt()}% remaining")
                             PanchangRow("Nakshatra", "${panchang.nakshatra.nakshatra.sanskritName} (Pada ${panchang.nakshatra.pada})")
                             PanchangRow("Yoga", "${panchang.yoga.name} - ${(panchang.yoga.remainingPercentage * 100).toInt()}% remaining")
                             PanchangRow("Karana", "${panchang.karana.name} - ${(panchang.karana.remainingPercentage * 100).toInt()}% remaining")
                             
+                            val lunar = panchang.lunarObservance
+                            if (lunar != null && (lunar.isEkadashi || lunar.isPurnima || lunar.isAmavasya)) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                val obsName = when {
+                                    lunar.isEkadashi -> "Ekadashi"
+                                    lunar.isPurnima -> "Purnima"
+                                    lunar.isAmavasya -> "Amavasya"
+                                    else -> ""
+                                }
+                                Text("Lunar Observance: $obsName", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                            }
+                            
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Astronomical Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            
+                            Text("Sun", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
                             val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
                             PanchangRow("Sunrise", panchang.sunrise?.format(timeFormatter) ?: "Unavailable")
                             PanchangRow("Sunset", panchang.sunset?.format(timeFormatter) ?: "Unavailable")
                             PanchangRow("Sun Sign", panchang.sunSign?.sanskritName ?: "Unavailable")
                             PanchangRow("Moon Sign", panchang.moonSign?.sanskritName ?: "Unavailable")
+                            
+                            panchang.muhurta?.let { muhurta ->
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Muhurta", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                
+                                muhurta.rahukaal?.let {
+                                    PanchangRow("Rahukaal", "${it.start.format(timeFormatter)} - ${it.end.format(timeFormatter)}")
+                                }
+                                muhurta.brahmaMuhurta?.let {
+                                    PanchangRow("Brahma Muhurta", "${it.start.format(timeFormatter)} - ${it.end.format(timeFormatter)}")
+                                }
+                            }
                         }
                     }
                 }
