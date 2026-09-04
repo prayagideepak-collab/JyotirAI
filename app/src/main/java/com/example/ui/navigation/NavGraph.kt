@@ -27,7 +27,12 @@ fun JyotishNavGraph(
         composable(Screen.Transit.route) { TransitScreen() }
         composable(Screen.Assistant.route) { AssistantScreen() }
         composable(Screen.Predictions.route) { PredictionsScreen() }
-        composable(Screen.Dasha.route) { DashaScreen() }
+        composable(Screen.Dasha.route) {
+            DashaScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+            )
+        }
         composable(Screen.Panchang.route) { PanchangScreen() }
         composable(Screen.Muhurta.route) { MuhurtaScreen() }
         composable(Screen.Compatibility.route) { CompatibilityScreen() }

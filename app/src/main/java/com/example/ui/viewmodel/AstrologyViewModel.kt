@@ -12,12 +12,20 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 sealed interface AstrologyUiState {
     data object Empty : AstrologyUiState
     data object Calculating : AstrologyUiState
     data class Success(val profile: AstrologyProfile) : AstrologyUiState
     data class Error(val message: String) : AstrologyUiState
+}
+
+sealed interface DashaUiState {
+    data object Empty : DashaUiState
+    data object Calculating : DashaUiState
+    data class Success(val timeline: DashaTimeline) : DashaUiState
+    data class Error(val message: String) : DashaUiState
 }
 
 class AstrologyViewModel(
@@ -39,6 +47,15 @@ class AstrologyViewModel(
     private val _selectedPlanetDetail = MutableStateFlow<PlanetPosition?>(null)
     val selectedPlanetDetail: StateFlow<PlanetPosition?> = _selectedPlanetDetail.asStateFlow()
 
+    private val _dashaUiState = MutableStateFlow<DashaUiState>(DashaUiState.Empty)
+    val dashaUiState: StateFlow<DashaUiState> = _dashaUiState.asStateFlow()
+
+    private val _dashaTimeline = MutableStateFlow<DashaTimeline?>(null)
+    val dashaTimeline: StateFlow<DashaTimeline?> = _dashaTimeline.asStateFlow()
+
+    private val _expandedMahadashaPlanet = MutableStateFlow<DashaPlanet?>(null)
+    val expandedMahadashaPlanet: StateFlow<DashaPlanet?> = _expandedMahadashaPlanet.asStateFlow()
+
     fun calculateBirthChart(birthData: BirthData) {
         _currentBirthData.value = birthData
         _uiState.value = AstrologyUiState.Calculating
@@ -49,12 +66,17 @@ class AstrologyViewModel(
                 onSuccess = { profile ->
                     _uiState.value = AstrologyUiState.Success(profile)
                     loadChartForVarga(birthData, _selectedVargaType.value)
+                    loadDashaTimeline(birthData)
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
                         error.message ?: "Failed to perform deterministic astrological calculation."
                     )
                     _currentChart.value = null
+                    _dashaUiState.value = DashaUiState.Error(
+                        error.message ?: "Failed to calculate Vimshottari Dasha."
+                    )
+                    _dashaTimeline.value = null
                 }
             )
         }
@@ -68,6 +90,32 @@ class AstrologyViewModel(
 
     fun selectPlanetDetail(planet: PlanetPosition?) {
         _selectedPlanetDetail.value = planet
+    }
+
+    fun toggleExpandMahadasha(planet: DashaPlanet) {
+        _expandedMahadashaPlanet.value = if (_expandedMahadashaPlanet.value == planet) null else planet
+    }
+
+    fun loadDashaTimeline(birthData: BirthData, targetDateTime: ZonedDateTime? = null) {
+        viewModelScope.launch {
+            _dashaUiState.value = DashaUiState.Calculating
+            val result = astrologyEngine.calculateDashaTimeline(birthData, targetDateTime)
+            result.fold(
+                onSuccess = { timeline ->
+                    _dashaTimeline.value = timeline
+                    _dashaUiState.value = DashaUiState.Success(timeline)
+                    if (_expandedMahadashaPlanet.value == null) {
+                        _expandedMahadashaPlanet.value = timeline.currentMahadasha?.planet ?: timeline.startingMahadasha
+                    }
+                },
+                onFailure = { error ->
+                    _dashaUiState.value = DashaUiState.Error(
+                        error.message ?: "Failed to calculate Vimshottari Dasha timeline."
+                    )
+                    _dashaTimeline.value = null
+                }
+            )
+        }
     }
 
     private fun loadChartForVarga(birthData: BirthData, vargaType: VargaType) {
@@ -84,6 +132,9 @@ class AstrologyViewModel(
         _uiState.value = AstrologyUiState.Empty
         _currentChart.value = null
         _selectedPlanetDetail.value = null
+        _dashaTimeline.value = null
+        _dashaUiState.value = DashaUiState.Empty
+        _expandedMahadashaPlanet.value = null
     }
 
     /**

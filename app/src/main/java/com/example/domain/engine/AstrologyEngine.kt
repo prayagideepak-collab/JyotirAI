@@ -3,6 +3,8 @@ package com.example.domain.engine
 import com.example.domain.models.AstrologyProfile
 import com.example.domain.models.BirthData
 import com.example.domain.models.Chart
+import com.example.domain.models.DashaTimeline
+import java.time.ZonedDateTime
 
 /**
  * Interface defining the boundary for the deterministic astrology calculation engine.
@@ -20,7 +22,13 @@ interface AstrologyEngine {
      * Generates a structural representation of the Rashi Chart (D1) or other divisional charts.
      */
     suspend fun calculateChart(birthData: BirthData, chartType: String = "D1"): Result<Chart>
-    
-    // Future placeholders for getDashas, getTransits, getYogas, etc.
+
+    /**
+     * Calculates the deterministic Vimshottari Dasha timeline based on sidereal Moon longitude.
+     */
+    suspend fun calculateDashaTimeline(
+        birthData: BirthData,
+        targetDateTime: ZonedDateTime? = null
+    ): Result<DashaTimeline>
 }
 

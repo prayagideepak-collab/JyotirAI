@@ -1,10 +1,8 @@
 package com.example.data.engine
 
 import com.example.domain.engine.AstrologyEngine
-import com.example.domain.models.AppError
-import com.example.domain.models.AstrologyProfile
-import com.example.domain.models.BirthData
-import com.example.domain.models.Chart
+import com.example.domain.models.*
+import java.time.ZonedDateTime
 
 /**
  * Test / Fallback mock for unit test environments where ephemeris is not required.
@@ -17,6 +15,13 @@ class MockAstrologyEngine : AstrologyEngine {
     }
 
     override suspend fun calculateChart(birthData: BirthData, chartType: String): Result<Chart> {
+        return Result.failure(AppError.CalculationError("Mock engine: For testing only. Use SwissEphAstrologyEngine for production calculations."))
+    }
+
+    override suspend fun calculateDashaTimeline(
+        birthData: BirthData,
+        targetDateTime: ZonedDateTime?
+    ): Result<DashaTimeline> {
         return Result.failure(AppError.CalculationError("Mock engine: For testing only. Use SwissEphAstrologyEngine for production calculations."))
     }
 }

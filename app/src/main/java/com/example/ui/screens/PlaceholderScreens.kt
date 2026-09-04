@@ -59,9 +59,6 @@ fun PlaceholderScreen(title: String, description: String) {
 fun PredictionsScreen() = PlaceholderScreen("Predictions", "Phase 7 & 8 feature. Requires deterministic calculation engine.")
 
 @Composable
-fun DashaScreen() = PlaceholderScreen("Vimshottari Dasha", "Phase 4 feature. Timeline calculation pending.")
-
-@Composable
 fun PanchangScreen() = PlaceholderScreen("Daily Panchang", "Phase 9 feature. Tithi, Yoga, Karana, and specific Muhurtas.")
 
 @Composable

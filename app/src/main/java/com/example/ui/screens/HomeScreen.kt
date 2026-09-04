@@ -147,7 +147,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     FeatureCard("Kundli & Vargas", "Phase 3 Ready", Modifier.weight(1f))
-                    FeatureCard("Vimshottari Dasha", "Phase 4", Modifier.weight(1f))
+                    FeatureCard("Vimshottari Dasha", "Phase 4 Ready", Modifier.weight(1f))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(

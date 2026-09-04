@@ -2,6 +2,7 @@ package com.example.data.engine
 
 import com.example.domain.engine.AstrologyEngine
 import com.example.domain.engine.VargaCalculator
+import com.example.domain.engine.VimshottariDashaCalculator
 import com.example.domain.models.*
 import de.thmac.swisseph.SweConst
 import de.thmac.swisseph.SweDate
@@ -22,12 +23,14 @@ import java.util.concurrent.ConcurrentHashMap
  * - Houses: Vedic Whole Sign System (Rashi Bhava Chakra) relative to calculated Sidereal Lagna
  * - Lunar Mansions: 27 Nakshatras with 4 Padas each (13°20' span, 3°20' pada span)
  * - Nodes: Mean Lunar Node (Rahu) and exact 180° opposite (Ketu)
+ * - Dasha: Authoritative Vimshottari Dasha derived from calculated sidereal Moon longitude
  */
 class SwissEphAstrologyEngine : AstrologyEngine {
 
     // Thread-safe caching for zero-redundancy computation
     private val profileCache = ConcurrentHashMap<BirthData, AstrologyProfile>()
     private val chartCache = ConcurrentHashMap<Pair<BirthData, String>, Chart>()
+    private val dashaCache = ConcurrentHashMap<Pair<BirthData, String>, DashaTimeline>()
 
     // ThreadLocal SwissEph instance for thread-safe computations without lock contention
     private val swissEphThreadLocal = ThreadLocal.withInitial {
@@ -240,6 +243,39 @@ class SwissEphAstrologyEngine : AstrologyEngine {
         }
         chartCache[cacheKey] = chart
         return Result.success(chart)
+    }
+
+    override suspend fun calculateDashaTimeline(
+        birthData: BirthData,
+        targetDateTime: ZonedDateTime?
+    ): Result<DashaTimeline> {
+        val targetZoned = targetDateTime ?: ZonedDateTime.now(birthData.timeZone)
+        val cacheKey = Pair(birthData, targetZoned.toString())
+        dashaCache[cacheKey]?.let { return Result.success(it) }
+
+        val profileResult = calculateProfile(birthData)
+        if (profileResult.isFailure) {
+            return Result.failure(
+                profileResult.exceptionOrNull() ?: AppError.CalculationError("Profile calculation failed")
+            )
+        }
+
+        val profile = profileResult.getOrThrow()
+        val moonPosition = profile.planetPositions.firstOrNull { it.planet == "Moon" }
+            ?: return Result.failure(AppError.CalculationError("Moon position not found in calculated profile"))
+
+        return try {
+            val timeline = VimshottariDashaCalculator.calculateTimeline(
+                birthData = birthData,
+                moonLongitude = moonPosition.totalLongitude,
+                targetDateTime = targetZoned,
+                metadata = profile.metadata
+            )
+            dashaCache[cacheKey] = timeline
+            Result.success(timeline)
+        } catch (e: Exception) {
+            Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate Dasha timeline"))
+        }
     }
 
     private fun validateBirthData(birthData: BirthData) {

@@ -7,8 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -67,7 +67,7 @@ fun JyotirAIApp() {
                 val items = listOf(
                     Triple(Screen.Home, "Home", Icons.Filled.Home),
                     Triple(Screen.Chart, "Kundli", Icons.Filled.Star),
-                    Triple(Screen.Transit, "Transits", Icons.Filled.DateRange),
+                    Triple(Screen.Dasha, "Dasha", Icons.Filled.Schedule),
                     Triple(Screen.Assistant, "Astrologer", Icons.Filled.AutoAwesome)
                 )
 
