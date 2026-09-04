@@ -271,7 +271,7 @@ fun AstrologyProfileView(
 
                 MetaRow("Ephemeris Engine", profile.metadata.ephemerisEngine)
                 MetaRow("Ayanamsa", "${profile.metadata.ayanamsaName} (${formatDegreeString(profile.metadata.ayanamsaDegree)})")
-                MetaRow("House System", profile.metadata.houseSystem)
+                MetaRow("House System", profile.metadata.houseSystem ?: "Vedic Whole Sign (Rashi Bhava)")
                 MetaRow("Julian Day (UT)", "%.6f".format(profile.metadata.julianDayUt))
                 MetaRow("Calculated UTC", profile.metadata.calculatedUtcIso)
             }

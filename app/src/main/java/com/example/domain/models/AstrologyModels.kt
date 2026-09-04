@@ -188,7 +188,7 @@ data class CalculationMetadata(
     val ephemerisEngine: String = "Swiss Ephemeris (Moshier Sidereal)",
     val ayanamsaName: String = "Lahiri (Chitra Paksha)",
     val ayanamsaDegree: Double,
-    val houseSystem: String = "Vedic Whole Sign (Rashi Bhava)",
+    val houseSystem: String? = "Vedic Whole Sign (Rashi Bhava)",
     val julianDayUt: Double,
     val calculatedUtcIso: String
 )

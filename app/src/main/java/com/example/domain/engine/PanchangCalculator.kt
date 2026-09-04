@@ -22,7 +22,8 @@ object PanchangCalculator {
         val utcDateTime = date.withZoneSameInstant(ZoneOffset.UTC)
         val hourDecimalUt = utcDateTime.hour +
                 (utcDateTime.minute / 60.0) +
-                (utcDateTime.second / 3600.0)
+                (utcDateTime.second / 3600.0) +
+                (utcDateTime.nano / 3_600_000_000_000.0)
                 
         val sweDate = SweDate(
             utcDateTime.year,
@@ -31,6 +32,9 @@ object PanchangCalculator {
             hourDecimalUt
         )
         val tjdUt = sweDate.julDay
+
+        // Ensure Lahiri Ayanamsa is configured for this ThreadLocal SwissEph instance
+        swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
 
         // Flags matches the deterministic Vedic engine configuration
         val flags = SweConst.SEFLG_MOSEPH or SweConst.SEFLG_SIDEREAL or SweConst.SEFLG_SPEED
@@ -42,6 +46,9 @@ object PanchangCalculator {
             throw AppError.CalculationError("Error calculating Sun position: $sunErr")
         }
         val sunLon = normalizeDegree(sunRes[0])
+        if (sunLon.isNaN() || sunLon.isInfinite()) {
+            throw AppError.CalculationError("Sun longitude is invalid: $sunLon")
+        }
 
         val moonRes = DoubleArray(6)
         val moonErr = StringBuffer()
@@ -50,6 +57,9 @@ object PanchangCalculator {
             throw AppError.CalculationError("Error calculating Moon position: $moonErr")
         }
         val moonLon = normalizeDegree(moonRes[0])
+        if (moonLon.isNaN() || moonLon.isInfinite()) {
+            throw AppError.CalculationError("Moon longitude is invalid: $moonLon")
+        }
 
         // 2. Tithi
         val tithi = calculateTithi(sunLon, moonLon)
@@ -95,7 +105,7 @@ object PanchangCalculator {
             ayanamsaDegree = ayanamsa,
             julianDayUt = tjdUt,
             calculatedUtcIso = utcDateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-            houseSystem = "Vedic Whole Sign (Rashi Bhava)"
+            houseSystem = null
         )
 
         return PanchangSnapshot(
@@ -158,10 +168,10 @@ object PanchangCalculator {
             14, 29 -> "Chaturdashi"
             15 -> "Purnima"
             30 -> "Amavasya"
-            else -> "Unknown"
+            else -> throw AppError.CalculationError("Invalid Tithi index: $tithiIndex")
         }
 
-        return Tithi(tithiIndex, tithiName, paksha, remainingPct)
+        return Tithi(tithiIndex, tithiName, paksha, remainingPct.coerceIn(0.0, 1.0))
     }
 
     private fun calculateNakshatra(moonLon: Double): NakshatraContext {
@@ -169,7 +179,11 @@ object PanchangCalculator {
         val nakshatra = pair.first
         val pada = pair.second
         
-        val degreeWithinNakshatra = normalizeDegree(moonLon - (nakshatra.index * Nakshatra.SPAN_DEGREES))
+        // Mathematically correct calculation relative to current Nakshatra boundaries
+        val nakshatraStartDegree = nakshatra.index * Nakshatra.SPAN_DEGREES
+        var degreeWithinNakshatra = moonLon - nakshatraStartDegree
+        if (degreeWithinNakshatra < 0) degreeWithinNakshatra += 360.0
+        
         val remainingPct = 1.0 - (degreeWithinNakshatra / Nakshatra.SPAN_DEGREES)
 
         return NakshatraContext(nakshatra, pada, remainingPct.coerceIn(0.0, 1.0))
@@ -191,7 +205,9 @@ object PanchangCalculator {
             "Indra", "Vaidhriti"
         )
         
-        return NityaYoga(yogaIndex, yogaNames.getOrElse(yogaIndex - 1) { "Unknown" }, remainingPct.coerceIn(0.0, 1.0))
+        val name = yogaNames.getOrNull(yogaIndex - 1) ?: throw AppError.CalculationError("Invalid Yoga index: $yogaIndex")
+        
+        return NityaYoga(yogaIndex, name, remainingPct.coerceIn(0.0, 1.0))
     }
 
     private fun calculateKarana(sunLon: Double, moonLon: Double): Karana {
@@ -213,7 +229,7 @@ object PanchangCalculator {
             58 -> { name = "Shakuni"; isFixed = true }
             59 -> { name = "Chatushpada"; isFixed = true }
             60 -> { name = "Naga"; isFixed = true }
-            else -> {
+            in 2..57 -> {
                 isFixed = false
                 val movableIndex = (karanaIndex - 2) % 7
                 name = when (movableIndex) {
@@ -224,55 +240,70 @@ object PanchangCalculator {
                     4 -> "Gara"
                     5 -> "Vanija"
                     6 -> "Vishti"
-                    else -> "Unknown"
+                    else -> throw AppError.CalculationError("Invalid Karana movable index: $movableIndex")
                 }
             }
+            else -> throw AppError.CalculationError("Invalid Karana index: $karanaIndex")
         }
 
         return Karana(karanaIndex, name, isFixed, remainingPct.coerceIn(0.0, 1.0))
     }
 
     private fun calculateRiseSet(
-        tjdUt: Double,
+        tjdUtMidnight: Double,
         location: BirthLocation,
         swe: SwissEph,
         rsmi: Int, // SweConst.SE_CALC_RISE or SET
         originalDate: ZonedDateTime
     ): ZonedDateTime? {
         val geopos = doubleArrayOf(location.longitude, location.latitude, 0.0)
-        val tret = DblObj()
-        val serr = StringBuffer()
-
         val flags = SweConst.SEFLG_MOSEPH
-
-        val res = swe.swe_rise_trans(tjdUt, SweConst.SE_SUN, null, flags, rsmi, geopos, 1013.25, 15.0, tret, serr)
+        val targetDate = originalDate.toLocalDate()
         
-        if (res == -1 || res == -2) {
-            return null // Sunrise/sunset not found
+        // Start search slightly before local midnight to avoid boundary misses
+        var currentTjd = tjdUtMidnight - 0.5
+        var iterations = 0
+        
+        while (iterations < 5) { // Bounded search
+            val tret = DblObj()
+            val serr = StringBuffer()
+            
+            val res = swe.swe_rise_trans(currentTjd, SweConst.SE_SUN, null, flags, rsmi, geopos, 1013.25, 15.0, tret, serr)
+            
+            if (res == -1 || res == -2 || res < 0) {
+                return null // Event not found (e.g., polar region) or error
+            }
+            
+            val eventJulianDay = tret.`val`
+            val eventUtc = convertJulianDayToZonedDateTime(eventJulianDay) ?: return null
+            val eventLocal = eventUtc.withZoneSameInstant(originalDate.zone)
+            val eventLocalDate = eventLocal.toLocalDate()
+            
+            if (eventLocalDate == targetDate) {
+                return eventLocal
+            } else if (eventLocalDate.isAfter(targetDate)) {
+                // Passed the target date, event does not happen on this day
+                return null
+            }
+            
+            // Advance search time just past this event
+            currentTjd = eventJulianDay + 0.01
+            iterations++
         }
         
-        val riseSetSweDate = SweDate(tret.`val`)
-        val year = riseSetSweDate.year
-        val month = riseSetSweDate.month
-        val day = riseSetSweDate.day
-        val hour = riseSetSweDate.hour.toInt()
-        val min = ((riseSetSweDate.hour - hour) * 60.0).toInt()
-        val sec = ((((riseSetSweDate.hour - hour) * 60.0) - min) * 60.0).toInt()
-
+        return null
+    }
+    
+    private fun convertJulianDayToZonedDateTime(jd: Double): ZonedDateTime? {
         return try {
-            val eventUtc = ZonedDateTime.of(year, month, day, hour, min, sec, 0, ZoneOffset.UTC)
-            val eventLocal = eventUtc.withZoneSameInstant(originalDate.zone)
-            
-            // Only return the event if it falls on the same local civil date
-            if (eventLocal.toLocalDate() == originalDate.toLocalDate()) {
-                eventLocal
-            } else {
-                // If it falls on a different civil date (e.g. searching from 00:00 found yesterday's or tomorrow's)
-                // we should shift by a day and search again, but for now we just return null to be safe or
-                // we should do a refined search. To be simple, we start our search at 00:00 local time, so
-                // swe_rise_trans finds the *next* sunrise/sunset. This should naturally fall on the correct day.
-                eventLocal
-            }
+            val sweDate = SweDate(jd)
+            val year = sweDate.year
+            val month = sweDate.month
+            val day = sweDate.day
+            val hour = sweDate.hour.toInt()
+            val min = ((sweDate.hour - hour) * 60.0).toInt()
+            val sec = ((((sweDate.hour - hour) * 60.0) - min) * 60.0).toInt()
+            ZonedDateTime.of(year, month, day, hour, min, sec, 0, ZoneOffset.UTC)
         } catch (e: Exception) {
             null
         }
