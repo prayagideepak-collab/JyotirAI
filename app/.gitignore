@@ -1,1 +1,9 @@
 /build
+.gradle/
+.build-outputs/
+*.keystore*
+.env
+.kotlin/
+app/build/
+local.properties
+

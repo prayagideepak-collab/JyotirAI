@@ -28,6 +28,12 @@ sealed interface DashaUiState {
     data class Error(val message: String) : DashaUiState
 }
 
+sealed interface TransitUiState {
+    data object Loading : TransitUiState
+    data class Success(val snapshot: TransitSnapshot) : TransitUiState
+    data class Error(val message: String) : TransitUiState
+}
+
 class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine = SwissEphAstrologyEngine()
 ) : ViewModel() {
@@ -56,6 +62,20 @@ class AstrologyViewModel(
     private val _expandedMahadashaPlanet = MutableStateFlow<DashaPlanet?>(null)
     val expandedMahadashaPlanet: StateFlow<DashaPlanet?> = _expandedMahadashaPlanet.asStateFlow()
 
+    // Transit State
+    private val _transitUiState = MutableStateFlow<TransitUiState>(TransitUiState.Loading)
+    val transitUiState: StateFlow<TransitUiState> = _transitUiState.asStateFlow()
+
+    private val _transitDateTime = MutableStateFlow<ZonedDateTime>(ZonedDateTime.now(ZoneId.of("Asia/Kolkata")))
+    val transitDateTime: StateFlow<ZonedDateTime> = _transitDateTime.asStateFlow()
+
+    private val _selectedTransitPlanet = MutableStateFlow<TransitPosition?>(null)
+    val selectedTransitPlanet: StateFlow<TransitPosition?> = _selectedTransitPlanet.asStateFlow()
+
+    init {
+        loadTransits()
+    }
+
     fun calculateBirthChart(birthData: BirthData) {
         _currentBirthData.value = birthData
         _uiState.value = AstrologyUiState.Calculating
@@ -67,6 +87,7 @@ class AstrologyViewModel(
                     _uiState.value = AstrologyUiState.Success(profile)
                     loadChartForVarga(birthData, _selectedVargaType.value)
                     loadDashaTimeline(birthData)
+                    loadTransits(location = birthData.location, natalProfile = profile)
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
@@ -135,6 +156,65 @@ class AstrologyViewModel(
         _dashaTimeline.value = null
         _dashaUiState.value = DashaUiState.Empty
         _expandedMahadashaPlanet.value = null
+        loadTransits(natalProfile = null)
+    }
+
+    fun loadTransits(
+        dateTime: ZonedDateTime? = null,
+        location: BirthLocation? = null,
+        natalProfile: AstrologyProfile? = null
+    ) {
+        val targetZoned = dateTime ?: _transitDateTime.value
+        _transitDateTime.value = targetZoned
+
+        val targetLocation = location
+            ?: _currentBirthData.value?.location
+            ?: BirthLocation(28.6139, 77.2090, "New Delhi, India")
+
+        val profileToUse = natalProfile ?: (_uiState.value as? AstrologyUiState.Success)?.profile
+
+        viewModelScope.launch {
+            _transitUiState.value = TransitUiState.Loading
+            val result = astrologyEngine.calculateTransitSnapshot(
+                transitDateTime = targetZoned,
+                location = targetLocation,
+                natalProfile = profileToUse
+            )
+            result.fold(
+                onSuccess = { snapshot ->
+                    _transitUiState.value = TransitUiState.Success(snapshot)
+                },
+                onFailure = { error ->
+                    _transitUiState.value = TransitUiState.Error(
+                        error.message ?: "Failed to calculate planetary transits."
+                    )
+                }
+            )
+        }
+    }
+
+    fun setTransitDateTime(dateTime: ZonedDateTime) {
+        loadTransits(dateTime = dateTime)
+    }
+
+    fun shiftTransitDays(days: Long) {
+        val updated = _transitDateTime.value.plusDays(days)
+        loadTransits(dateTime = updated)
+    }
+
+    fun shiftTransitMonths(months: Long) {
+        val updated = _transitDateTime.value.plusMonths(months)
+        loadTransits(dateTime = updated)
+    }
+
+    fun resetTransitToNow() {
+        val zone = _currentBirthData.value?.timeZone ?: _transitDateTime.value.zone ?: ZoneId.of("Asia/Kolkata")
+        val now = ZonedDateTime.now(zone)
+        loadTransits(dateTime = now)
+    }
+
+    fun selectTransitPlanet(planet: TransitPosition?) {
+        _selectedTransitPlanet.value = planet
     }
 
     /**

@@ -63,7 +63,11 @@ enum class Rashi(
 
     companion object {
         fun fromIndex(index: Int): Rashi = entries[index.mod(12)]
-        fun fromLongitude(longitude: Double): Rashi = fromIndex((longitude / 30.0).toInt())
+        fun fromLongitude(longitude: Double): Rashi {
+            val normalized = (longitude % 360.0 + 360.0) % 360.0
+            val idx = (normalized / 30.0).toInt().coerceIn(0, 11)
+            return entries[idx]
+        }
     }
 }
 

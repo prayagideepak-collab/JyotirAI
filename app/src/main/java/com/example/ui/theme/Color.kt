@@ -14,3 +14,5 @@ val AccentGold = Color(0xFFFFD700) // Gold
 val SurfaceElevated = Color(0xFF242424) // Elevated Dark Surface
 val BorderSubtle = Color(0x1AFFFFFF) // White/10
 val IconContainer = Color(0xFF2A2A2A)
+val AccentCrimson = Color(0xFFEF4444) // Red 500
+val AccentEmerald = Color(0xFF10B981) // Emerald 500

@@ -24,7 +24,12 @@ fun JyotishNavGraph(
     ) {
         composable(Screen.Home.route) { HomeScreen(viewModel = astrologyViewModel) }
         composable(Screen.Chart.route) { ChartScreen(viewModel = astrologyViewModel) }
-        composable(Screen.Transit.route) { TransitScreen() }
+        composable(Screen.Transit.route) {
+            TransitScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+            )
+        }
         composable(Screen.Assistant.route) { AssistantScreen() }
         composable(Screen.Predictions.route) { PredictionsScreen() }
         composable(Screen.Dasha.route) {

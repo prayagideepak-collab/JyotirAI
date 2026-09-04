@@ -2,8 +2,10 @@ package com.example.domain.engine
 
 import com.example.domain.models.AstrologyProfile
 import com.example.domain.models.BirthData
+import com.example.domain.models.BirthLocation
 import com.example.domain.models.Chart
 import com.example.domain.models.DashaTimeline
+import com.example.domain.models.TransitSnapshot
 import java.time.ZonedDateTime
 
 /**
@@ -30,5 +32,15 @@ interface AstrologyEngine {
         birthData: BirthData,
         targetDateTime: ZonedDateTime? = null
     ): Result<DashaTimeline>
+
+    /**
+     * Calculates deterministic planetary transits (Gochar) for a specific date, time, and location,
+     * optionally evaluating relative house positions against a natal profile.
+     */
+    suspend fun calculateTransitSnapshot(
+        transitDateTime: ZonedDateTime,
+        location: BirthLocation,
+        natalProfile: AstrologyProfile? = null
+    ): Result<TransitSnapshot>
 }
 

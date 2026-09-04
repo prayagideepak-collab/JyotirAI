@@ -24,4 +24,12 @@ class MockAstrologyEngine : AstrologyEngine {
     ): Result<DashaTimeline> {
         return Result.failure(AppError.CalculationError("Mock engine: For testing only. Use SwissEphAstrologyEngine for production calculations."))
     }
+
+    override suspend fun calculateTransitSnapshot(
+        transitDateTime: ZonedDateTime,
+        location: BirthLocation,
+        natalProfile: AstrologyProfile?
+    ): Result<TransitSnapshot> {
+        return Result.failure(AppError.CalculationError("Mock engine: For testing only. Use SwissEphAstrologyEngine for production calculations."))
+    }
 }
