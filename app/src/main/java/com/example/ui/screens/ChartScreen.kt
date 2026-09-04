@@ -6,17 +6,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.domain.models.VargaType
+import com.example.ui.components.ChartInfoPanel
+import com.example.ui.components.ChartSelectorRow
+import com.example.ui.components.NorthIndianKundliView
+import com.example.ui.components.PlanetDetailDialog
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyUiState
 import com.example.ui.viewmodel.AstrologyViewModel
@@ -26,13 +33,17 @@ fun ChartScreen(
     viewModel: AstrologyViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedVarga by viewModel.selectedVargaType.collectAsStateWithLifecycle()
+    val currentChart by viewModel.currentChart.collectAsStateWithLifecycle()
+    val selectedPlanetDetail by viewModel.selectedPlanetDetail.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .testTag("chart_screen"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
@@ -44,108 +55,61 @@ fun ChartScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         )
         Text(
-            text = "Rashi (D1), Navamsa (D9), and Divisional Vargas",
+            text = "Deterministic Vedic Vargas (D1 Rashi, D9 Navamsha, D10 Dashamsha & more)",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 20.dp)
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         when (val state = uiState) {
             is AstrologyUiState.Success -> {
                 val profile = state.profile
-                // Natal Chart Overview Box
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(GradientStart, GradientEnd)
-                            )
-                        )
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
-                        .padding(20.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Rashi Chart (D1) Summary",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentAmber
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Calculated for ${profile.birthData.name} (${profile.birthData.location.placeName})",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        HorizontalDivider(color = BorderSubtle)
-                        Spacer(modifier = Modifier.height(12.dp))
+                val activeChart = currentChart ?: profile.rashiChart
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Ascendant (Lagna):",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = profile.lagna,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Moon Sign (Rashi):",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = profile.moonSign,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-                    }
+                // 1. Varga Selector
+                ChartSelectorRow(
+                    selectedVarga = selectedVarga,
+                    onSelectVarga = { viewModel.selectVarga(it) },
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // 2. North Indian Kundli Visual Representation
+                NorthIndianKundliView(
+                    chart = activeChart,
+                    onPlanetClick = { viewModel.selectPlanetDetail(it) },
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
+
+                // 3. Information Panel with Placements & Significations
+                ChartInfoPanel(
+                    chart = activeChart,
+                    onPlanetClick = { viewModel.selectPlanetDetail(it) },
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+
+                // 4. Interactive Planet Detail Dialog
+                selectedPlanetDetail?.let { planet ->
+                    PlanetDetailDialog(
+                        planet = planet,
+                        chartTitle = activeChart.title,
+                        onDismiss = { viewModel.selectPlanetDetail(null) }
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Chart Grid representation notice
+            }
+            is AstrologyUiState.Calculating -> {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
-                        .padding(24.dp)
+                        .height(300.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = AccentGold)
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Visual Kundli Rendering",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "North Indian Diamond & South Indian Square chart visualizations with planetary degrees will be rendered in Phase 3.",
+                            text = "Calculating high-precision Swiss Ephemeris chart...",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -158,23 +122,39 @@ fun ChartScreen(
                         .background(SurfaceCard)
                         .border(1.dp, BorderSubtle, RoundedCornerShape(28.dp))
                         .padding(32.dp)
+                        .testTag("chart_empty_state")
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "No Chart Available",
+                            text = "No Chart Calculated",
                             style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Please configure birth details on the Home tab to view the calculated natal chart.",
+                            text = "Configure birth details on the Home tab, or load a sample reference profile to view Rashi (D1), Navamsha (D9), and Dashamsha (D10) charts.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = { viewModel.loadReferenceProfile() },
+                            modifier = Modifier.testTag("chart_screen_load_sample_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Load Sample Profile")
+                        }
                     }
                 }
             }

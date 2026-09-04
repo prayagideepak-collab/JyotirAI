@@ -1,6 +1,7 @@
 package com.example.data.engine
 
 import com.example.domain.engine.AstrologyEngine
+import com.example.domain.engine.VargaCalculator
 import com.example.domain.models.*
 import de.thmac.swisseph.SweConst
 import de.thmac.swisseph.SweDate
@@ -175,7 +176,16 @@ class SwissEphAstrologyEngine : AstrologyEngine {
 
             val rashiChart = Chart(
                 type = "D1",
-                positions = planetPositions
+                positions = planetPositions,
+                vargaType = VargaType.D1,
+                title = "D1 — Rashi (Natal Chart)",
+                sanskritTitle = "Rashi Chakra",
+                description = "Foundational life blueprint, physical constitution & vitality",
+                ascendantSign = "${lagnaRashi.sanskritName} (${lagnaRashi.englishName})",
+                ascendantSignIndex = lagnaRashi.index,
+                ascendantDegreeInSign = lagnaDegreeInSign,
+                ascendantNakshatra = lagnaNakshatraEnum.sanskritName,
+                ascendantPada = lagnaPada
             )
 
             val metadata = CalculationMetadata(
@@ -213,7 +223,8 @@ class SwissEphAstrologyEngine : AstrologyEngine {
     }
 
     override suspend fun calculateChart(birthData: BirthData, chartType: String): Result<Chart> {
-        val cacheKey = Pair(birthData, chartType)
+        val vargaType = VargaType.fromCode(chartType)
+        val cacheKey = Pair(birthData, vargaType.code)
         chartCache[cacheKey]?.let { return Result.success(it) }
 
         val profileResult = calculateProfile(birthData)
@@ -222,7 +233,11 @@ class SwissEphAstrologyEngine : AstrologyEngine {
         }
 
         val profile = profileResult.getOrThrow()
-        val chart = profile.rashiChart
+        val chart = if (vargaType == VargaType.D1) {
+            profile.rashiChart
+        } else {
+            VargaCalculator.calculateVargaChart(profile, vargaType)
+        }
         chartCache[cacheKey] = chart
         return Result.success(chart)
     }

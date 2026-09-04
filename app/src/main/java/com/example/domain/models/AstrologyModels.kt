@@ -4,6 +4,41 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
+ * Standard 16 Vedic Divisional Charts (Shodashavarga) and key Vargas
+ */
+enum class VargaType(
+    val code: String,
+    val sanskritName: String,
+    val englishName: String,
+    val significations: String,
+    val division: Int,
+    val isCalculated: Boolean = true
+) {
+    D1("D1", "Rashi", "Natal / Physical Body", "Foundational life blueprint, physical constitution, vitality & general existence", 1, true),
+    D2("D2", "Hora", "Wealth & Resources", "Financial prosperity, accumulated assets, speech & family wealth", 2, true),
+    D3("D3", "Drekkana", "Siblings & Courage", "Siblings, vitality, courage, drive, energy & third house matters", 3, true),
+    D4("D4", "Chaturthamsha", "Fortune & Property", "Fixed property, land, conveyances, domestic happiness & general luck", 4, true),
+    D7("D7", "Saptamsha", "Children & Progeny", "Children, grandchildren, creative fertility, partnerships & legacy", 7, true),
+    D9("D9", "Navamsha", "Dharma & Marriage", "Spouse, married life, inner spiritual potential, soul purpose & destiny", 9, true),
+    D10("D10", "Dashamsha", "Profession & Status", "Career, professional accomplishments, status, power, leadership & karma", 10, true),
+    D12("D12", "Dwadashamsha", "Parents & Lineage", "Parents, ancestral karma, lineage, heritage & past-life influences", 12, true),
+    D16("D16", "Shodashamsha", "Vehicles & Comforts", "Vehicles, luxuries, general comforts, happiness & pleasures", 16, false),
+    D20("D20", "Vimshamsha", "Spiritual Progress", "Religious inclination, devotion, upasana, meditation & spiritual depth", 20, false),
+    D24("D24", "Chaturvimshamsha", "Learning & Knowledge", "Higher academic education, intellect, skills, learning & expertise", 24, false),
+    D27("D27", "Saptavimshamsha", "Strengths & Weaknesses", "General subconscious strengths, weaknesses, stamina & vital force", 27, false),
+    D30("D30", "Trimshamsha", "Misfortunes & Evils", "Hidden liabilities, health challenges, evils, obstacles & arishta", 30, false),
+    D40("D40", "Khavedamsha", "Auspicious Events", "Auspicious and inauspicious karmic fruits and auspicious timings", 40, false),
+    D45("D45", "Akshavedamsha", "General Character", "Moral integrity, soul purity, general character & fine nuances", 45, false),
+    D60("D60", "Shashtiamsha", "Root Karma & Past Life", "Micro-destiny, past life karma, root causes & all matters", 60, false);
+
+    companion object {
+        fun fromCode(code: String): VargaType {
+            return entries.firstOrNull { it.code.equals(code.trim(), ignoreCase = true) } ?: D1
+        }
+    }
+}
+
+/**
  * Standard 12 Vedic Rashi (Zodiac Signs)
  */
 enum class Rashi(
@@ -96,7 +131,9 @@ data class PlanetPosition(
     val nakshatra: String,
     val nakshatraLord: String,
     val nakshatraPada: Int,
-    val speed: Double
+    val speed: Double,
+    val abbreviation: String = defaultPlanetAbbreviation(planet),
+    val sanskritName: String = defaultPlanetSanskritName(planet)
 ) {
     val formattedDegree: String
         get() {
@@ -105,6 +142,39 @@ data class PlanetPosition(
             val s = ((((degreeInSign - d) * 60) - m) * 60).toInt()
             return "%02d° %02d' %02d\"".format(d, m, s)
         }
+
+    val rashiEnum: Rashi
+        get() = Rashi.fromIndex(signIndex)
+
+    companion object {
+        fun defaultPlanetAbbreviation(planet: String): String = when (planet.lowercase().trim()) {
+            "sun" -> "Su"
+            "moon" -> "Mo"
+            "mars" -> "Ma"
+            "mercury" -> "Me"
+            "jupiter" -> "Ju"
+            "venus" -> "Ve"
+            "saturn" -> "Sa"
+            "rahu" -> "Ra"
+            "ketu" -> "Ke"
+            "ascendant", "lagna" -> "Asc"
+            else -> planet.take(2).replaceFirstChar { it.uppercase() }
+        }
+
+        fun defaultPlanetSanskritName(planet: String): String = when (planet.lowercase().trim()) {
+            "sun" -> "Surya"
+            "moon" -> "Chandra"
+            "mars" -> "Mangala"
+            "mercury" -> "Budha"
+            "jupiter" -> "Guru"
+            "venus" -> "Shukra"
+            "saturn" -> "Shani"
+            "rahu" -> "Rahu"
+            "ketu" -> "Ketu"
+            "ascendant", "lagna" -> "Lagna"
+            else -> planet
+        }
+    }
 }
 
 /**
@@ -121,8 +191,23 @@ data class CalculationMetadata(
 
 data class Chart(
     val type: String,
-    val positions: List<PlanetPosition>
-)
+    val positions: List<PlanetPosition>,
+    val vargaType: VargaType = VargaType.fromCode(type),
+    val title: String = "${VargaType.fromCode(type).code} — ${VargaType.fromCode(type).sanskritName}",
+    val sanskritTitle: String = VargaType.fromCode(type).sanskritName,
+    val description: String = VargaType.fromCode(type).significations,
+    val ascendantSign: String = "",
+    val ascendantSignIndex: Int = 0,
+    val ascendantDegreeInSign: Double = 0.0,
+    val ascendantNakshatra: String = "",
+    val ascendantPada: Int = 1
+) {
+    fun getPlanetsInHouse(houseNumber: Int): List<PlanetPosition> =
+        positions.filter { it.house == houseNumber }
+
+    fun getPlanetsInSign(signIndex: Int): List<PlanetPosition> =
+        positions.filter { it.signIndex == signIndex }
+}
 
 data class AstrologyProfile(
     val birthData: BirthData,
