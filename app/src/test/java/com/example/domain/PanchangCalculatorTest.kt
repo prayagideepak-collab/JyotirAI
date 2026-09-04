@@ -12,8 +12,96 @@ import org.junit.Test
 class PanchangCalculatorTest {
 
     @Test
+    fun `test all 30 Tithis programmatically`() {
+        val expectedNames = listOf(
+            "Pratipada", "Dvitiya", "Tritiya", "Chaturthi", "Panchami",
+            "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+            "Ekadashi", "Dvadashi", "Trayodashi", "Chaturdashi", "Purnima",
+            "Pratipada", "Dvitiya", "Tritiya", "Chaturthi", "Panchami",
+            "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+            "Ekadashi", "Dvadashi", "Trayodashi", "Chaturdashi", "Amavasya"
+        )
+        for (i in 1..30) {
+            val elongation = (i - 1) * 12.0 + 6.0
+            val tithi = PanchangCalculator.calculateTithi(0.0, elongation)
+            assertEquals(i, tithi.index)
+            assertEquals(expectedNames[i - 1], tithi.name)
+            if (i <= 15) {
+                assertEquals(Paksha.SHUKLA, tithi.paksha)
+            } else {
+                assertEquals(Paksha.KRISHNA, tithi.paksha)
+            }
+        }
+    }
+
+    @Test
+    fun `test all 27 Yogas programmatically`() {
+        val expectedNames = listOf(
+            "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
+            "Atiganda", "Sukarma", "Dhriti", "Shula", "Ganda",
+            "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
+            "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
+            "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma",
+            "Indra", "Vaidhriti"
+        )
+        val span = 360.0 / 27.0
+        for (i in 1..27) {
+            val sum = (i - 1) * span + (span / 2.0)
+            val yoga = PanchangCalculator.calculateYoga(0.0, sum)
+            assertEquals(i, yoga.index)
+            assertEquals(expectedNames[i - 1], yoga.name)
+        }
+    }
+
+    @Test
+    fun `test all 27 Nakshatras and 4 Padas`() {
+        val span = 360.0 / 27.0
+        val padaSpan = span / 4.0
+        for (i in 0..26) {
+            for (p in 1..4) {
+                val lon = i * span + (p - 1) * padaSpan + (padaSpan / 2.0)
+                val nak = PanchangCalculator.calculateNakshatra(lon)
+                assertEquals(i, nak.nakshatra.index)
+                assertEquals(p, nak.pada)
+            }
+        }
+    }
+
+    @Test
+    fun `test all 60 Karana indices`() {
+        val expectedMovable = listOf("Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti")
+        for (i in 1..60) {
+            val elongation = (i - 1) * 6.0 + 3.0
+            val karana = PanchangCalculator.calculateKarana(0.0, elongation)
+            assertEquals(i, karana.index)
+            when (i) {
+                1 -> {
+                    assertEquals("Kimstughna", karana.name)
+                    assertTrue(karana.isFixed)
+                }
+                58 -> {
+                    assertEquals("Shakuni", karana.name)
+                    assertTrue(karana.isFixed)
+                }
+                59 -> {
+                    assertEquals("Chatushpada", karana.name)
+                    assertTrue(karana.isFixed)
+                }
+                60 -> {
+                    assertEquals("Naga", karana.name)
+                    assertTrue(karana.isFixed)
+                }
+                else -> {
+                    val expectedName = expectedMovable[(i - 2) % 7]
+                    assertEquals(expectedName, karana.name)
+                    assertFalse(karana.isFixed)
+                }
+            }
+        }
+    }
+
+    @Test
     fun `test Tithi Boundaries and Wraparound`() {
-        // Amavasya end / Pratipada start
         val t1 = PanchangCalculator.calculateTithi(0.0, 0.0)
         assertEquals(1, t1.index)
         assertEquals("Pratipada", t1.name)
@@ -28,25 +116,21 @@ class PanchangCalculatorTest {
         assertEquals(2, t3.index)
         assertEquals("Dvitiya", t3.name)
 
-        // Purnima
         val t4 = PanchangCalculator.calculateTithi(0.0, 179.99)
         assertEquals(15, t4.index)
         assertEquals("Purnima", t4.name)
         assertEquals(Paksha.SHUKLA, t4.paksha)
 
-        // Krishna Pratipada
         val t5 = PanchangCalculator.calculateTithi(0.0, 180.0)
         assertEquals(16, t5.index)
         assertEquals("Pratipada", t5.name)
         assertEquals(Paksha.KRISHNA, t5.paksha)
 
-        // Amavasya
         val t6 = PanchangCalculator.calculateTithi(0.0, 359.99)
         assertEquals(30, t6.index)
         assertEquals("Amavasya", t6.name)
         assertEquals(Paksha.KRISHNA, t6.paksha)
 
-        // Wraparound check (Moon = 2, Sun = 358 -> Diff = 4 -> Tithi 1)
         val t7 = PanchangCalculator.calculateTithi(358.0, 2.0)
         assertEquals(1, t7.index)
         assertEquals(0.666, t7.remainingPercentage, 0.01)
@@ -68,18 +152,15 @@ class PanchangCalculatorTest {
         assertEquals(0, n3.nakshatra.index)
         assertEquals(2, n3.pada)
 
-        // End of Ashwini
         val n4 = PanchangCalculator.calculateNakshatra(13.33)
         assertEquals(0, n4.nakshatra.index)
         assertEquals(4, n4.pada)
         
-        // Start of Bharani
         val n5 = PanchangCalculator.calculateNakshatra(13.34)
         assertEquals(1, n5.nakshatra.index)
         assertEquals("Bharani", n5.nakshatra.sanskritName)
         assertEquals(1, n5.pada)
 
-        // Revati end
         val n6 = PanchangCalculator.calculateNakshatra(359.99)
         assertEquals(26, n6.nakshatra.index)
         assertEquals("Revati", n6.nakshatra.sanskritName)
@@ -99,62 +180,11 @@ class PanchangCalculatorTest {
         assertEquals(2, y3.index)
         assertEquals("Priti", y3.name)
 
-        // Wraparound (Sun = 350, Moon = 15 -> sum 365 -> 5)
         val y4 = PanchangCalculator.calculateYoga(350.0, 15.0)
         assertEquals(1, y4.index)
         
-        // End of Vaidhriti
         val y5 = PanchangCalculator.calculateYoga(180.0, 179.99)
         assertEquals(27, y5.index)
         assertEquals("Vaidhriti", y5.name)
-    }
-
-    @Test
-    fun `test Karana Sequences and Boundaries`() {
-        // 1. Kimstughna
-        val k1 = PanchangCalculator.calculateKarana(0.0, 0.0)
-        assertEquals(1, k1.index)
-        assertEquals("Kimstughna", k1.name)
-        assertTrue(k1.isFixed)
-
-        // 2. Bava
-        val k2 = PanchangCalculator.calculateKarana(0.0, 6.0)
-        assertEquals(2, k2.index)
-        assertEquals("Bava", k2.name)
-        assertFalse(k2.isFixed)
-
-        // 8. Vishti
-        val k8 = PanchangCalculator.calculateKarana(0.0, 42.0)
-        assertEquals(8, k8.index)
-        assertEquals("Vishti", k8.name)
-        assertFalse(k8.isFixed)
-
-        // 9. Bava (repeats)
-        val k9 = PanchangCalculator.calculateKarana(0.0, 48.0)
-        assertEquals(9, k9.index)
-        assertEquals("Bava", k9.name)
-
-        // 57. Vishti
-        val k57 = PanchangCalculator.calculateKarana(0.0, 336.0)
-        assertEquals(57, k57.index)
-        assertEquals("Vishti", k57.name)
-
-        // 58. Shakuni
-        val k58 = PanchangCalculator.calculateKarana(0.0, 342.0)
-        assertEquals(58, k58.index)
-        assertEquals("Shakuni", k58.name)
-        assertTrue(k58.isFixed)
-
-        // 59. Chatushpada
-        val k59 = PanchangCalculator.calculateKarana(0.0, 348.0)
-        assertEquals(59, k59.index)
-        assertEquals("Chatushpada", k59.name)
-        assertTrue(k59.isFixed)
-
-        // 60. Naga
-        val k60 = PanchangCalculator.calculateKarana(0.0, 354.0)
-        assertEquals(60, k60.index)
-        assertEquals("Naga", k60.name)
-        assertTrue(k60.isFixed)
     }
 }
