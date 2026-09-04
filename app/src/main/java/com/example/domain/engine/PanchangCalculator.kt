@@ -1,5 +1,6 @@
 package com.example.domain.engine
 
+import androidx.annotation.VisibleForTesting
 import com.example.domain.models.*
 import de.thmac.swisseph.DblObj
 import de.thmac.swisseph.SweConst
@@ -125,13 +126,15 @@ object PanchangCalculator {
         )
     }
 
-    private fun normalizeDegree(deg: Double): Double {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun normalizeDegree(deg: Double): Double {
         var d = deg % 360.0
         if (d < 0) d += 360.0
         return d
     }
 
-    private fun getVara(date: ZonedDateTime): Vara {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun getVara(date: ZonedDateTime): Vara {
         return when (date.dayOfWeek.value) {
             1 -> Vara.SOMAVARA // Monday
             2 -> Vara.MANGALAVARA
@@ -144,7 +147,8 @@ object PanchangCalculator {
         }
     }
 
-    private fun calculateTithi(sunLon: Double, moonLon: Double): Tithi {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun calculateTithi(sunLon: Double, moonLon: Double): Tithi {
         val elongation = normalizeDegree(moonLon - sunLon)
         val tithiIndex = (elongation / 12.0).toInt() + 1 // 1 to 30
         
@@ -174,7 +178,8 @@ object PanchangCalculator {
         return Tithi(tithiIndex, tithiName, paksha, remainingPct.coerceIn(0.0, 1.0))
     }
 
-    private fun calculateNakshatra(moonLon: Double): NakshatraContext {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun calculateNakshatra(moonLon: Double): NakshatraContext {
         val pair = Nakshatra.fromLongitude(moonLon)
         val nakshatra = pair.first
         val pada = pair.second
@@ -189,7 +194,8 @@ object PanchangCalculator {
         return NakshatraContext(nakshatra, pada, remainingPct.coerceIn(0.0, 1.0))
     }
 
-    private fun calculateYoga(sunLon: Double, moonLon: Double): NityaYoga {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun calculateYoga(sunLon: Double, moonLon: Double): NityaYoga {
         val yogaLon = normalizeDegree(sunLon + moonLon)
         val span = 360.0 / 27.0
         val yogaIndex = (yogaLon / span).toInt() + 1 // 1 to 27
@@ -210,7 +216,8 @@ object PanchangCalculator {
         return NityaYoga(yogaIndex, name, remainingPct.coerceIn(0.0, 1.0))
     }
 
-    private fun calculateKarana(sunLon: Double, moonLon: Double): Karana {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun calculateKarana(sunLon: Double, moonLon: Double): Karana {
         val elongation = normalizeDegree(moonLon - sunLon)
         val karanaIndex = (elongation / 6.0).toInt() + 1 // 1 to 60
         val remainingPct = 1.0 - ((elongation % 6.0) / 6.0)
