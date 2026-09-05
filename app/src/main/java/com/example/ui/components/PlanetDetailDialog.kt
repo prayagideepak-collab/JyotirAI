@@ -17,6 +17,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,10 +61,12 @@ fun PlanetDetailDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .padding(vertical = 24.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .widthIn(max = 480.dp)
+                .heightIn(max = 620.dp)
+                .padding(vertical = 16.dp)
+                .clip(RoundedCornerShape(24.dp))
                 .background(SurfaceElevated)
-                .border(1.dp, planetColor.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
+                .border(1.dp, planetColor.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
                 .testTag("planet_detail_dialog"),
             color = SurfaceElevated
         ) {
@@ -77,10 +82,13 @@ fun PlanetDetailDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(46.dp)
                                 .clip(CircleShape)
                                 .background(
                                     brush = Brush.radialGradient(
@@ -100,16 +108,14 @@ fun PlanetDetailDialog(
                                 fontSize = 16.sp
                             )
                         }
-                        Spacer(modifier = Modifier.width(14.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "${planet.planet} (${planet.sanskritName})",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                            }
+                            Text(
+                                text = "${planet.planet} (${planet.sanskritName})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
                             Text(
                                 text = "$chartTitle Placement",
                                 style = MaterialTheme.typography.bodySmall,
@@ -122,28 +128,30 @@ fun PlanetDetailDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .size(48.dp)
+                            .semantics { role = Role.Button }
                             .testTag("planet_detail_dialog_close")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
+                            contentDescription = "Close planet detail dialog",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = BorderSubtle)
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Motion & Dignity Badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val motionText = if (planet.isRetrograde && planet.planet != "Rahu" && planet.planet != "Ketu") "Vakri (Retrograde)" else "Marga (Direct)"
-                    val motionColor = if (planet.isRetrograde && planet.planet != "Rahu" && planet.planet != "Ketu") AccentAmber else Color(0xFF69F0AE)
-                    
+                    val isRetro = planet.isRetrograde && planet.planet != "Rahu" && planet.planet != "Ketu"
+                    val motionText = if (isRetro) "Vakri (Retrograde)" else "Marga (Direct)"
+                    val motionColor = if (isRetro) AccentAmber else Color(0xFF69F0AE)
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -175,7 +183,7 @@ fun PlanetDetailDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Detail Rows Card
                 Card(
@@ -223,13 +231,13 @@ fun PlanetDetailDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("planet_detail_dialog_dismiss_button"),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -265,3 +273,4 @@ private fun DetailItem(
         )
     }
 }
+

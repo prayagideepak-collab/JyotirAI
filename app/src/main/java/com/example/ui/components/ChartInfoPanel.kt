@@ -12,6 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,25 +50,18 @@ fun ChartInfoPanel(
                     .fillMaxWidth()
                     .padding(18.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = chart.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentGold
-                        )
-                        Text(
-                            text = chart.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                Text(
+                    text = chart.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AccentGold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = chart.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = BorderSubtle)
@@ -72,16 +69,21 @@ fun ChartInfoPanel(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Column {
+                    // Left Column: Lagna (Ascendant)
+                    Column(
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Text(
                             text = "Lagna (Ascendant)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = chart.ascendantSign,
+                            text = chart.ascendantSign.ifEmpty { "—" },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -97,13 +99,18 @@ fun ChartInfoPanel(
                         }
                     }
 
+                    // Right Column: Moon (Chandra)
                     val moonPos = chart.positions.firstOrNull { it.planet.equals("Moon", ignoreCase = true) }
-                    Column(horizontalAlignment = Alignment.End) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Text(
                             text = "Chandra (Moon)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = moonPos?.sign ?: "—",
                             style = MaterialTheme.typography.bodyMedium,
@@ -142,6 +149,7 @@ fun ChartInfoPanel(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Tap any planet for comprehensive astrological properties",
                     style = MaterialTheme.typography.labelSmall,
@@ -158,17 +166,21 @@ fun ChartInfoPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .testTag("planet_row_${planet.planet.lowercase()}")
                             .clickable { onPlanetClick(planet) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp)
-                            .testTag("planet_row_${planet.planet.lowercase()}"),
+                            .defaultMinSize(minHeight = 48.dp)
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Left: Planet Badge + Name
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Left Section: Planet Badge + Name + Sign
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(34.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(planetColor.copy(alpha = 0.2f))
                                     .border(1.dp, planetColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
@@ -185,7 +197,7 @@ fun ChartInfoPanel(
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = planet.planet,
+                                        text = "${planet.planet} (${planet.sanskritName})",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onBackground
@@ -207,8 +219,13 @@ fun ChartInfoPanel(
                             }
                         }
 
-                        // Right: House + Degree + Nakshatra
-                        Column(horizontalAlignment = Alignment.End) {
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Right Section: House + Degree + Nakshatra
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier.wrapContentWidth()
+                        ) {
                             Text(
                                 text = "House ${planet.house}",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -228,3 +245,4 @@ fun ChartInfoPanel(
         }
     }
 }
+
