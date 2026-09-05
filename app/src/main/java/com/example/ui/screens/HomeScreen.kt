@@ -1,9 +1,9 @@
 package com.example.ui.screens
-import kotlin.coroutines.suspendCoroutine
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +11,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,11 +28,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.domain.models.UserProfile
 import com.example.ui.components.AstrologyProfileView
 import com.example.ui.components.BirthDataEntryDialog
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyUiState
 import com.example.ui.viewmodel.AstrologyViewModel
+import kotlin.coroutines.suspendCoroutine
 
 @Composable
 fun HomeScreen(
@@ -34,8 +42,14 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentBirthData by viewModel.currentBirthData.collectAsStateWithLifecycle()
+    val savedProfiles by viewModel.savedProfiles.collectAsStateWithLifecycle()
+    val activeProfileId by viewModel.activeProfileId.collectAsStateWithLifecycle()
+    val defaultProfileId by viewModel.defaultProfileId.collectAsStateWithLifecycle()
+    val activeUserProfile by viewModel.activeUserProfile.collectAsStateWithLifecycle()
 
     var showDialog by remember { mutableStateOf(false) }
+    var editingProfile by remember { mutableStateOf<UserProfile?>(null) }
+    var profileToDelete by remember { mutableStateOf<UserProfile?>(null) }
 
     Column(
         modifier = Modifier
@@ -58,8 +72,33 @@ fun HomeScreen(
             text = "Precision Vedic Astrological Computation Engine",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 20.dp)
+            modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        // Profile Slots Management Bar (when profiles exist)
+        if (savedProfiles.isNotEmpty()) {
+            ProfileSlotsBar(
+                profiles = savedProfiles,
+                activeProfileId = activeProfileId,
+                defaultProfileId = defaultProfileId,
+                onSelectProfile = { id -> viewModel.switchActiveProfile(id) },
+                onSetDefault = { id -> viewModel.setDefaultProfile(id) },
+                onEdit = { profile ->
+                    editingProfile = profile
+                    showDialog = true
+                },
+                onDelete = { profile ->
+                    profileToDelete = profile
+                },
+                onAddNew = {
+                    editingProfile = null
+                    showDialog = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+        }
 
         when (val state = uiState) {
             is AstrologyUiState.Empty -> {
@@ -90,7 +129,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Enter your exact date, time, and coordinates of birth to calculate your sidereal natal chart with high precision.",
+                            text = "Enter your exact date, time, and coordinates of birth to calculate your sidereal natal chart with high precision. Store up to 3 profiles.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -98,7 +137,10 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Button(
-                            onClick = { showDialog = true },
+                            onClick = {
+                                editingProfile = null
+                                showDialog = true
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("enter_birth_details_button"),
@@ -192,8 +234,17 @@ fun HomeScreen(
             is AstrologyUiState.Success -> {
                 AstrologyProfileView(
                     profile = state.profile,
-                    onEditClick = { showDialog = true },
-                    onClearClick = { viewModel.clearProfile() }
+                    isDefaultProfile = (activeProfileId == defaultProfileId),
+                    onSetDefaultClick = {
+                        activeProfileId?.let { viewModel.setDefaultProfile(it) }
+                    },
+                    onEditClick = {
+                        editingProfile = activeUserProfile
+                        showDialog = true
+                    },
+                    onClearClick = {
+                        profileToDelete = activeUserProfile
+                    }
                 )
             }
 
@@ -224,7 +275,10 @@ fun HomeScreen(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { showDialog = true }) {
+                        Button(onClick = {
+                            editingProfile = activeUserProfile
+                            showDialog = true
+                        }) {
                             Text("Re-enter Details")
                         }
                     }
@@ -245,20 +299,287 @@ fun HomeScreen(
 
     if (showDialog) {
         BirthDataEntryDialog(
-            initialData = currentBirthData,
-            onDismiss = { showDialog = false },
+            initialData = editingProfile?.birthData ?: currentBirthData,
+            onDismiss = {
+                showDialog = false
+                editingProfile = null
+            },
             onSubmit = { data ->
                 showDialog = false
-                viewModel.calculateBirthChart(data)
+                viewModel.saveOrUpdateProfile(data, existingId = editingProfile?.id)
+                editingProfile = null
             },
-            onResolveLocation = { query -> 
-                kotlin.coroutines.suspendCoroutine { cont ->
+            onResolveLocation = { query ->
+                suspendCoroutine { cont ->
                     viewModel.resolveLocation(query) { result ->
                         cont.resumeWith(Result.success(result))
                     }
                 }
             }
         )
+    }
+
+    // Delete Confirmation Dialog
+    profileToDelete?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { profileToDelete = null },
+            title = {
+                Text("Delete Profile", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Are you sure you want to permanently delete the profile for \"${profile.name}\"?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProfile(profile.id)
+                        profileToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    modifier = Modifier.testTag("confirm_delete_profile_button")
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { profileToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun ProfileSlotsBar(
+    profiles: List<UserProfile>,
+    activeProfileId: String?,
+    defaultProfileId: String?,
+    onSelectProfile: (String) -> Unit,
+    onSetDefault: (String) -> Unit,
+    onEdit: (UserProfile) -> Unit,
+    onDelete: (UserProfile) -> Unit,
+    onAddNew: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("profile_slots_bar"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Profiles (${profiles.size}/3)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                if (profiles.size < 3) {
+                    TextButton(
+                        onClick = onAddNew,
+                        modifier = Modifier.testTag("add_profile_button"),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = AccentAmber
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Add Profile",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AccentAmber
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                profiles.forEach { profile ->
+                    val isActive = profile.id == activeProfileId
+                    val isDefault = profile.id == defaultProfileId
+
+                    ProfileSlotItem(
+                        profile = profile,
+                        isActive = isActive,
+                        isDefault = isDefault,
+                        onSelect = { onSelectProfile(profile.id) },
+                        onSetDefault = { onSetDefault(profile.id) },
+                        onEdit = { onEdit(profile) },
+                        onDelete = { onDelete(profile) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileSlotItem(
+    profile: UserProfile,
+    isActive: Boolean,
+    isDefault: Boolean,
+    onSelect: () -> Unit,
+    onSetDefault: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isActive) AccentAmber else BorderSubtle
+    val background = if (isActive) AccentAmber.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(background)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .testTag("profile_slot_item_${profile.id}")
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = profile.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
+                    if (isActive) {
+                        Text(
+                            text = "Active",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentAmber,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(AccentAmber.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("badge_active_${profile.id}")
+                        )
+                    }
+
+                    if (isDefault) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("badge_default_${profile.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = AccentAmber,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Text(
+                                text = "Default",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${profile.date} • ${profile.location.placeName}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (!isDefault) {
+                    IconButton(
+                        onClick = onSetDefault,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("set_default_button_${profile.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.StarOutline,
+                            contentDescription = "Set as Default Profile",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("edit_profile_button_${profile.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Profile",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("delete_profile_button_${profile.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Delete Profile",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

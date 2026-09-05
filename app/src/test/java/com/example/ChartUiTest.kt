@@ -321,7 +321,7 @@ class ChartUiTest {
 
     @Test
     fun testChartScreenShowsEmptyStateAndLoadsSampleProfile() {
-        val viewModel = AstrologyViewModel(MockAstrologyEngine(), FakeLocationResolver(), FakeLocationRepository())
+        val viewModel = AstrologyViewModel(MockAstrologyEngine(), FakeLocationResolver(), FakeLocationRepository(), com.example.domain.FakeProfileRepository())
 
         composeTestRule.setContent {
             JyotishTheme {

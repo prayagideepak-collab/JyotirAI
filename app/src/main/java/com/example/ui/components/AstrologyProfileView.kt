@@ -30,6 +30,8 @@ fun AstrologyProfileView(
     profile: AstrologyProfile,
     onEditClick: () -> Unit,
     onClearClick: () -> Unit,
+    isDefaultProfile: Boolean = false,
+    onSetDefaultClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val birthData = profile.birthData
@@ -61,13 +63,47 @@ fun AstrologyProfileView(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = birthData.name,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = birthData.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+
+                        if (isDefaultProfile) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(AccentAmber.copy(alpha = 0.15f))
+                                    .border(1.dp, AccentAmber.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .testTag("profile_view_default_badge")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Default Profile",
+                                    tint = AccentAmber,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Default for Daily Predictions",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AccentAmber
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = birthData.location.placeName,
                             style = MaterialTheme.typography.bodyMedium,
@@ -76,6 +112,18 @@ fun AstrologyProfileView(
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (!isDefaultProfile && onSetDefaultClick != null) {
+                            IconButton(
+                                onClick = onSetDefaultClick,
+                                modifier = Modifier.testTag("set_default_profile_icon_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.StarOutline,
+                                    contentDescription = "Set as Default Profile",
+                                    tint = AccentAmber
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = onEditClick,
                             modifier = Modifier.testTag("edit_profile_button")

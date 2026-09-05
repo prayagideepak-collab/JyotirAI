@@ -6,6 +6,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.JyotishTheme
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.data.engine.MockAstrologyEngine
+import com.example.domain.FakeProfileRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.location.LocationRepository
 import com.example.domain.models.BirthLocation
@@ -35,7 +36,7 @@ class GreetingScreenshotTest {
 
   @Test
   fun home_screen_screenshot() {
-    val viewModel = AstrologyViewModel(MockAstrologyEngine(), FakeLocationResolver(), FakeLocationRepository())
+    val viewModel = AstrologyViewModel(MockAstrologyEngine(), FakeLocationResolver(), FakeLocationRepository(), FakeProfileRepository())
 
     composeTestRule.setContent {
       JyotishTheme {

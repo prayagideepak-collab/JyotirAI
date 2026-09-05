@@ -271,8 +271,3 @@ data class NumerologyResult(
     val lifePathNumber: Int,
     val destinyNumber: Int
 )
-
-data class UserProfile(
-    val id: String,
-    val primaryBirthData: BirthData?
-)

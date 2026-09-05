@@ -1,12 +1,12 @@
 package com.example.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.example.domain.location.LocationResolver
-import com.example.domain.location.LocationRepository
 import androidx.lifecycle.viewModelScope
-import com.example.data.engine.SwissEphAstrologyEngine
 import com.example.domain.engine.AstrologyEngine
+import com.example.domain.location.LocationRepository
+import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
+import com.example.domain.profile.ProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +15,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.UUID
 
 sealed interface AstrologyUiState {
     data object Empty : AstrologyUiState
@@ -45,14 +46,31 @@ sealed interface TransitUiState {
 class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine,
     private val locationResolver: LocationResolver,
-    private val locationRepository: LocationRepository
+    private val locationRepository: LocationRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
-//
-    
 
+    // Persistent User Profile State (Max 3 Slots)
+    private val _savedProfiles = MutableStateFlow<List<UserProfile>>(emptyList())
+    val savedProfiles: StateFlow<List<UserProfile>> = _savedProfiles.asStateFlow()
+
+    private val _activeProfileId = MutableStateFlow<String?>(null)
+    val activeProfileId: StateFlow<String?> = _activeProfileId.asStateFlow()
+
+    private val _defaultProfileId = MutableStateFlow<String?>(null)
+    val defaultProfileId: StateFlow<String?> = _defaultProfileId.asStateFlow()
+
+    private val _activeUserProfile = MutableStateFlow<UserProfile?>(null)
+    val activeUserProfile: StateFlow<UserProfile?> = _activeUserProfile.asStateFlow()
+
+    private val _defaultUserProfile = MutableStateFlow<UserProfile?>(null)
+    val defaultUserProfile: StateFlow<UserProfile?> = _defaultUserProfile.asStateFlow()
+
+    // Location State
     private val _savedLocation = MutableStateFlow<BirthLocation?>(null)
     val savedLocation: StateFlow<BirthLocation?> = _savedLocation.asStateFlow()
 
+    // Calculation / Chart State
     private val _uiState = MutableStateFlow<AstrologyUiState>(AstrologyUiState.Empty)
     val uiState: StateFlow<AstrologyUiState> = _uiState.asStateFlow()
 
@@ -68,6 +86,7 @@ class AstrologyViewModel(
     private val _selectedPlanetDetail = MutableStateFlow<PlanetPosition?>(null)
     val selectedPlanetDetail: StateFlow<PlanetPosition?> = _selectedPlanetDetail.asStateFlow()
 
+    // Dasha State
     private val _dashaUiState = MutableStateFlow<DashaUiState>(DashaUiState.Empty)
     val dashaUiState: StateFlow<DashaUiState> = _dashaUiState.asStateFlow()
 
@@ -95,28 +114,58 @@ class AstrologyViewModel(
 
     init {
         viewModelScope.launch {
+            refreshProfilesAndRestoreActive()
+        }
+    }
+
+    private suspend fun refreshProfilesAndRestoreActive() {
+        val profiles = profileRepository.getAllProfiles()
+        _savedProfiles.value = profiles
+
+        val defId = profileRepository.getDefaultProfileId()
+        val actId = profileRepository.getActiveProfileId()
+
+        _defaultProfileId.value = defId
+        _activeProfileId.value = actId
+        _defaultUserProfile.value = profileRepository.getDefaultProfile()
+
+        val active = profileRepository.getActiveProfile()
+        _activeUserProfile.value = active
+
+        if (active != null) {
+            _savedLocation.value = active.location
+            active.location.timeZoneId?.let { tz ->
+                try {
+                    val zone = ZoneId.of(tz)
+                    _panchangDateTime.value = ZonedDateTime.now(zone)
+                    _transitDateTime.value = ZonedDateTime.now(zone)
+                } catch (_: Exception) {}
+            }
+            calculateBirthChartInternal(active.birthData)
+        } else {
+            // No saved profile, check standalone saved location for Panchang / Transit
             val loc = locationRepository.getVerifiedLocation()
             _savedLocation.value = loc
-            
-            // Re-initialize timezones if location found
             loc?.timeZoneId?.let { tz ->
-                val zone = ZoneId.of(tz)
-                _panchangDateTime.value = ZonedDateTime.now(zone)
-                _transitDateTime.value = ZonedDateTime.now(zone)
+                try {
+                    val zone = ZoneId.of(tz)
+                    _panchangDateTime.value = ZonedDateTime.now(zone)
+                    _transitDateTime.value = ZonedDateTime.now(zone)
+                } catch (_: Exception) {}
             }
-            
+            _uiState.value = AstrologyUiState.Empty
             loadPanchang()
             loadTransits()
         }
     }
-    
+
     fun resolveLocation(query: String, onResult: (Result<List<BirthLocation>>) -> Unit) {
         viewModelScope.launch {
             val res = locationResolver.resolveLocation(query)
             onResult(res)
         }
     }
-    
+
     fun saveVerifiedLocation(location: BirthLocation) {
         viewModelScope.launch {
             locationRepository.saveVerifiedLocation(location)
@@ -128,18 +177,148 @@ class AstrologyViewModel(
                     _transitDateTime.value = _transitDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
                 } catch (_: Exception) {}
             }
-            // Invalidate and reload with new authoritative location
             loadPanchang(location = location)
             loadTransits(location = location)
         }
     }
 
+    /**
+     * Saves or updates a persistent user profile (max 3).
+     */
+    fun saveOrUpdateProfile(
+        birthData: BirthData,
+        existingId: String? = null,
+        onResult: ((Result<UserProfile>) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val targetId = existingId ?: UUID.randomUUID().toString()
+            val userProfile = UserProfile(id = targetId, birthData = birthData)
 
+            val saveResult = profileRepository.saveProfile(userProfile)
+            saveResult.fold(
+                onSuccess = {
+                    profileRepository.setActiveProfileId(userProfile.id)
+                    locationRepository.saveVerifiedLocation(birthData.location)
+
+                    // Refresh profile state
+                    val profiles = profileRepository.getAllProfiles()
+                    _savedProfiles.value = profiles
+                    _activeProfileId.value = userProfile.id
+                    _activeUserProfile.value = userProfile
+                    _defaultProfileId.value = profileRepository.getDefaultProfileId()
+                    _defaultUserProfile.value = profileRepository.getDefaultProfile()
+                    _savedLocation.value = birthData.location
+
+                    calculateBirthChartInternal(birthData)
+                    onResult?.invoke(Result.success(userProfile))
+                },
+                onFailure = { error ->
+                    onResult?.invoke(Result.failure(error))
+                }
+            )
+        }
+    }
+
+    /**
+     * Switches the currently active profile for chart/dasha viewing without altering the default profile.
+     */
+    fun switchActiveProfile(profileId: String) {
+        viewModelScope.launch {
+            val setResult = profileRepository.setActiveProfileId(profileId)
+            if (setResult.isSuccess) {
+                _activeProfileId.value = profileId
+                val profile = profileRepository.getProfileById(profileId)
+                _activeUserProfile.value = profile
+
+                if (profile != null) {
+                    _savedLocation.value = profile.location
+                    locationRepository.saveVerifiedLocation(profile.location)
+                    profile.location.timeZoneId?.let { tz ->
+                        try {
+                            val zone = ZoneId.of(tz)
+                            _panchangDateTime.value = _panchangDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
+                            _transitDateTime.value = _transitDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
+                        } catch (_: Exception) {}
+                    }
+                    calculateBirthChartInternal(profile.birthData)
+                }
+            }
+        }
+    }
+
+    /**
+     * Designates a saved profile as the canonical Default Profile for future Daily Predictions.
+     */
+    fun setDefaultProfile(profileId: String) {
+        viewModelScope.launch {
+            val setResult = profileRepository.setDefaultProfileId(profileId)
+            if (setResult.isSuccess) {
+                _defaultProfileId.value = profileId
+                _defaultUserProfile.value = profileRepository.getProfileById(profileId)
+            }
+        }
+    }
+
+    /**
+     * Deletes a saved profile, automatically repairing default and active profiles.
+     */
+    fun deleteProfile(profileId: String) {
+        viewModelScope.launch {
+            profileRepository.deleteProfile(profileId)
+
+            val remainingProfiles = profileRepository.getAllProfiles()
+            _savedProfiles.value = remainingProfiles
+            _defaultProfileId.value = profileRepository.getDefaultProfileId()
+            _defaultUserProfile.value = profileRepository.getDefaultProfile()
+
+            val newActive = profileRepository.getActiveProfile()
+            _activeProfileId.value = newActive?.id
+            _activeUserProfile.value = newActive
+
+            if (newActive != null) {
+                _savedLocation.value = newActive.location
+                locationRepository.saveVerifiedLocation(newActive.location)
+                calculateBirthChartInternal(newActive.birthData)
+            } else {
+                clearProfileState()
+            }
+        }
+    }
+
+    /**
+     * Authoritative method to obtain the canonical Default Profile for future Daily Predictions.
+     */
+    fun getDefaultProfile(): UserProfile? = _defaultUserProfile.value
+
+    fun getDefaultProfileForDailyPrediction(): UserProfile? = _defaultUserProfile.value
+
+    /**
+     * Authoritative method to obtain the canonical BirthData for future Daily Predictions.
+     */
+    fun getDefaultBirthData(): BirthData? = _defaultUserProfile.value?.birthData
+
+    fun getDefaultBirthDataForDailyPrediction(): BirthData? = _defaultUserProfile.value?.birthData
+
+    /**
+     * Calculates natal chart from given birth data and persists as active profile.
+     */
     fun calculateBirthChart(birthData: BirthData) {
+        val existingActiveId = _activeProfileId.value
+        // If active profile exists with same ID, update it; otherwise if slots remain, create new or update
+        val targetId = if (existingActiveId != null && _savedProfiles.value.any { it.id == existingActiveId }) {
+            existingActiveId
+        } else if (_savedProfiles.value.size < 3) {
+            UUID.randomUUID().toString()
+        } else {
+            _savedProfiles.value.firstOrNull()?.id ?: UUID.randomUUID().toString()
+        }
+
+        saveOrUpdateProfile(birthData, existingId = targetId)
+    }
+
+    private fun calculateBirthChartInternal(birthData: BirthData) {
         _currentBirthData.value = birthData
         _uiState.value = AstrologyUiState.Calculating
-        
-        saveVerifiedLocation(birthData.location)
 
         viewModelScope.launch {
             val result = astrologyEngine.calculateProfile(birthData)
@@ -210,7 +389,17 @@ class AstrologyViewModel(
     }
 
     fun clearProfile() {
+        val currentId = _activeProfileId.value
+        if (currentId != null) {
+            deleteProfile(currentId)
+        } else {
+            clearProfileState()
+        }
+    }
+
+    private fun clearProfileState() {
         _currentBirthData.value = null
+        _activeUserProfile.value = null
         _uiState.value = AstrologyUiState.Empty
         _currentChart.value = null
         _selectedPlanetDetail.value = null
@@ -227,16 +416,16 @@ class AstrologyViewModel(
         val targetLocation = location
             ?: _currentBirthData.value?.location
             ?: _savedLocation.value
-            
+
         if (targetLocation == null || targetLocation.timeZoneId == null) {
             _panchangUiState.value = PanchangUiState.Error("Location not set or missing timezone. Please select a valid location.")
             return
         }
-        
-        val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
-        val finalTargetZoned = dateTime ?: _panchangDateTime.value?.withZoneSameInstant(zone) ?: java.time.ZonedDateTime.now(zone)
+
+        val zone = ZoneId.of(targetLocation.timeZoneId)
+        val finalTargetZoned = dateTime ?: _panchangDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
         _panchangDateTime.value = finalTargetZoned
-        
+
         viewModelScope.launch {
             _panchangUiState.value = PanchangUiState.Loading
             val result = astrologyEngine.calculatePanchang(finalTargetZoned, targetLocation)
@@ -248,10 +437,10 @@ class AstrologyViewModel(
     }
 
     fun setPanchangDateTime(dateTime: ZonedDateTime) { loadPanchang(dateTime = dateTime) }
-    fun shiftPanchangDays(days: Long) { 
-        _panchangDateTime.value?.let { current -> 
-            loadPanchang(dateTime = current.plusDays(days)) 
-        } 
+    fun shiftPanchangDays(days: Long) {
+        _panchangDateTime.value?.let { current ->
+            loadPanchang(dateTime = current.plusDays(days))
+        }
     }
     fun resetPanchangToNow() {
         val targetLocation = _currentBirthData.value?.location ?: _savedLocation.value
@@ -269,14 +458,14 @@ class AstrologyViewModel(
         val targetLocation = location
             ?: _currentBirthData.value?.location
             ?: _savedLocation.value
-            
+
         if (targetLocation == null || targetLocation.timeZoneId == null) {
             _transitUiState.value = TransitUiState.Error("Location not set or missing timezone. Please select a valid location.")
             return
         }
-        
-        val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
-        val finalTargetZoned = dateTime ?: _transitDateTime.value?.withZoneSameInstant(zone) ?: java.time.ZonedDateTime.now(zone)
+
+        val zone = ZoneId.of(targetLocation.timeZoneId)
+        val finalTargetZoned = dateTime ?: _transitDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
         _transitDateTime.value = finalTargetZoned
 
         val profileToUse = natalProfile ?: (_uiState.value as? AstrologyUiState.Success)?.profile
@@ -320,8 +509,8 @@ class AstrologyViewModel(
     fun resetTransitToNow() {
         val targetLocation = _currentBirthData.value?.location ?: _savedLocation.value
         if (targetLocation?.timeZoneId != null) {
-            val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
-            loadTransits(dateTime = java.time.ZonedDateTime.now(zone))
+            val zone = ZoneId.of(targetLocation.timeZoneId)
+            loadTransits(dateTime = ZonedDateTime.now(zone))
         }
     }
 
@@ -330,7 +519,7 @@ class AstrologyViewModel(
     }
 
     /**
-     * Helper to load a verified reference profile (e.g. Standard New Delhi reference)
+     * Helper to load a verified reference profile (New Delhi reference).
      */
     fun loadReferenceProfile() {
         val referenceData = BirthData(
@@ -349,4 +538,3 @@ class AstrologyViewModel(
         calculateBirthChart(referenceData)
     }
 }
-
