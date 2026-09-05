@@ -178,23 +178,40 @@ object KundliPdfExporter {
 
         yPos += 14f
         val ascSign = com.example.domain.models.Rashi.fromIndex(profile.lagnaSignIndex)
-        canvas.drawText("Ascendant (Lagna): ${ascSign.sanskritName} (${ascSign.name}) at ${formatDegree(profile.lagnaLongitude)}", 36f, yPos, paint)
+        canvas.drawText(
+            "Ascendant (Lagna): ${ascSign.sanskritName} (${ascSign.name}) ${formatDegree(profile.lagnaDegreeInSign)} • ${profile.lagnaNakshatra} (Pada ${profile.lagnaPada})",
+            36f, yPos, paint
+        )
+
+        yPos += 14f
+        val moonSignRashi = com.example.domain.models.Rashi.fromIndex(profile.moonSignIndex)
+        canvas.drawText(
+            "Moon Sign: ${moonSignRashi.sanskritName} (${moonSignRashi.name}) • Janma Nakshatra: ${profile.nakshatra} (Pada ${profile.nakshatraPada}, Lord: ${profile.nakshatraLord})",
+            36f, yPos, paint
+        )
 
         // North Indian Diamond Chart (D1 / Active Chart)
-        yPos += 24f
+        yPos += 22f
         drawSectionHeader(canvas, "2. ${activeChart.title.uppercase()} (${activeChart.type})", 36f, yPos)
         yPos += 14f
 
-        val chartSize = 180f
+        val chartSize = 175f
         val chartLeft = (PAGE_WIDTH - chartSize) / 2f
         drawNorthIndianChartGeometry(canvas, chartLeft, yPos, chartSize, activeChart)
 
         // Planetary Positions Table
-        yPos += chartSize + 28f
+        yPos += chartSize + 24f
         drawSectionHeader(canvas, "3. PLANETARY PLACEMENTS & DIGNITIES", 36f, yPos)
         yPos += 16f
 
-        drawPlanetaryTable(canvas, 36f, yPos, profile.rashiChart.positions)
+        val tablePositions = if (profile.rashiChart.positions.isNotEmpty()) {
+            profile.rashiChart.positions
+        } else if (profile.planetPositions.isNotEmpty()) {
+            profile.planetPositions
+        } else {
+            activeChart.positions
+        }
+        drawPlanetaryTable(canvas, 36f, yPos, tablePositions)
     }
 
     private fun drawPage2Content(canvas: Canvas, profile: AstrologyProfile, dashaTimeline: DashaTimeline?) {
@@ -237,7 +254,7 @@ object KundliPdfExporter {
                 textAlign = Paint.Align.CENTER
                 isAntiAlias = true
             }
-            canvas.drawText("D9 Navamsha Lagna: ${navamshaChart.ascendantSign}", PAGE_WIDTH / 2f, yPos + chartSize + 12f, subPaint)
+            canvas.drawText("D9 Navamsha Lagna: ${navamshaChart.ascendantSign} (${navamshaChart.ascendantDegreeInSign.toInt()}°)", PAGE_WIDTH / 2f, yPos + chartSize + 12f, subPaint)
         } else {
             val errorBoxPaint = Paint().apply {
                 color = Color.rgb(248, 242, 242)
@@ -263,24 +280,45 @@ object KundliPdfExporter {
         paint.textSize = 9.5f
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
 
-        if (dashaTimeline != null) {
-            val currentMaha = dashaTimeline.currentMahadasha
-            val currentAntar = dashaTimeline.currentAntardasha
+        val effectiveTimeline = dashaTimeline ?: run {
+            val moonPos = profile.planetPositions.find { it.planet.equals("moon", ignoreCase = true) }
+                ?: profile.rashiChart.positions.find { it.planet.equals("moon", ignoreCase = true) }
+            if (moonPos != null) {
+                try {
+                    com.example.domain.engine.VimshottariDashaCalculator.calculateTimeline(
+                        birthData = profile.birthData,
+                        moonLongitude = moonPos.totalLongitude,
+                        targetDateTime = ZonedDateTime.now(),
+                        metadata = profile.metadata
+                    )
+                } catch (_: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+        }
+
+        if (effectiveTimeline != null) {
+            val currentMaha = effectiveTimeline.currentMahadasha
+            val currentAntar = effectiveTimeline.currentAntardasha
 
             val activeDashaText = "Active Period: Mahadasha of ${currentMaha?.planet?.lord ?: "N/A"} " +
                     "(Antardasha: ${currentAntar?.antardashaLord?.lord ?: "N/A"})"
             canvas.drawText(activeDashaText, 36f, yPos, paint)
             yPos += 16f
 
-            // Table of Mahadashas
-            var dashaX = 36f
-            val colWidth = 170f
+            // Table of Mahadashas (3x3 grid)
+            val dashaX = 36f
+            val colWidth = 172f
             var colIndex = 0
 
-            dashaTimeline.mahadashaPeriods.take(9).forEach { md ->
+            effectiveTimeline.mahadashaPeriods.take(9).forEach { md ->
                 val startYear = md.startDate.year
                 val endYear = md.endDate.year
-                val rowText = "${md.planet.lord} Mahadasha: $startYear - $endYear (${md.totalDurationYears} yrs)"
+                val isActive = md.planet == currentMaha?.planet
+                val activeIndicator = if (isActive) " ★" else ""
+                val rowText = "${md.planet.lord}$activeIndicator: $startYear - $endYear (${md.totalDurationYears}y)"
                 canvas.drawText(rowText, dashaX + (colIndex * colWidth), yPos, paint)
 
                 colIndex++
@@ -365,31 +403,61 @@ object KundliPdfExporter {
         }
         canvas.drawPath(path, linePaint)
 
-        // Text paint for houses & planets
-        val textPaint = Paint().apply {
-            color = Color.rgb(26, 26, 46)
-            textSize = 7.5f
+        // Text paints
+        val signPaint = Paint().apply {
+            color = Color.rgb(180, 130, 20)
+            textSize = 6.5f
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
 
-        // Label 1st House (Lagna) in center top diamond
-        val lagnaPlanets = chart.positions.filter { it.house == 1 }.joinToString(" ") { it.planet.take(2) }
-        val lagnaText = if (lagnaPlanets.isNotEmpty()) "1: $lagnaPlanets" else "1"
-        canvas.drawText(lagnaText, x + half, y + (size * 0.28f), textPaint)
+        val planetPaint = Paint().apply {
+            color = Color.rgb(26, 26, 46)
+            textSize = 7f
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
 
-        // Label 4th House (Left diamond)
-        val h4Planets = chart.positions.filter { it.house == 4 }.joinToString(" ") { it.planet.take(2) }
-        canvas.drawText(if (h4Planets.isNotEmpty()) "4: $h4Planets" else "4", x + (size * 0.28f), y + half, textPaint)
+        // Relative coordinates (relX, relY for planets; signRelX, signRelY for sign number)
+        data class HouseLayout(val house: Int, val px: Float, val py: Float, val sx: Float, val sy: Float)
+        val layouts = listOf(
+            HouseLayout(1, 0.50f, 0.30f, 0.50f, 0.16f),
+            HouseLayout(2, 0.26f, 0.16f, 0.36f, 0.08f),
+            HouseLayout(3, 0.16f, 0.26f, 0.08f, 0.36f),
+            HouseLayout(4, 0.30f, 0.50f, 0.16f, 0.50f),
+            HouseLayout(5, 0.16f, 0.74f, 0.08f, 0.64f),
+            HouseLayout(6, 0.26f, 0.84f, 0.36f, 0.92f),
+            HouseLayout(7, 0.50f, 0.70f, 0.50f, 0.84f),
+            HouseLayout(8, 0.74f, 0.84f, 0.64f, 0.92f),
+            HouseLayout(9, 0.84f, 0.74f, 0.92f, 0.64f),
+            HouseLayout(10, 0.70f, 0.50f, 0.84f, 0.50f),
+            HouseLayout(11, 0.84f, 0.26f, 0.92f, 0.36f),
+            HouseLayout(12, 0.74f, 0.16f, 0.64f, 0.08f)
+        )
 
-        // Label 7th House (Bottom diamond)
-        val h7Planets = chart.positions.filter { it.house == 7 }.joinToString(" ") { it.planet.take(2) }
-        canvas.drawText(if (h7Planets.isNotEmpty()) "7: $h7Planets" else "7", x + half, y + (size * 0.72f), textPaint)
+        layouts.forEach { hl ->
+            // 1. Classical Rashi sign number (1-12)
+            val rashiNumber = (chart.ascendantSignIndex + (hl.house - 1)) % 12 + 1
+            canvas.drawText("$rashiNumber", x + (size * hl.sx), y + (size * hl.sy), signPaint)
 
-        // Label 10th House (Right diamond)
-        val h10Planets = chart.positions.filter { it.house == 10 }.joinToString(" ") { it.planet.take(2) }
-        canvas.drawText(if (h10Planets.isNotEmpty()) "10: $h10Planets" else "10", x + (size * 0.72f), y + half, textPaint)
+            // 2. Planets occupying this house
+            val planets = chart.getPlanetsInHouse(hl.house)
+            val planetStr = planets.joinToString(" ") { p ->
+                val isRetro = p.isRetrograde && p.planet != "Rahu" && p.planet != "Ketu"
+                if (isRetro) "${p.abbreviation}[R]" else p.abbreviation
+            }
+
+            if (hl.house == 1 && chart.ascendantDegreeInSign > 0.0) {
+                val ascStr = "Asc ${chart.ascendantDegreeInSign.toInt()}°"
+                canvas.drawText(ascStr, x + (size * hl.px), y + (size * (hl.py - 0.06f)), signPaint)
+            }
+
+            if (planetStr.isNotBlank()) {
+                canvas.drawText(planetStr, x + (size * hl.px), y + (size * hl.py), planetPaint)
+            }
+        }
     }
 
     private fun drawPlanetaryTable(canvas: Canvas, startX: Float, startY: Float, planets: List<PlanetPosition>) {
@@ -402,7 +470,7 @@ object KundliPdfExporter {
 
         val rowPaint = Paint().apply {
             color = Color.rgb(40, 40, 50)
-            textSize = 8.5f
+            textSize = 8f
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
             isAntiAlias = true
         }
@@ -414,7 +482,7 @@ object KundliPdfExporter {
             isAntiAlias = true
         }
 
-        val colX = floatArrayOf(startX, startX + 68f, startX + 144f, startX + 226f, startX + 304f, startX + 372f, startX + 434f)
+        val colX = floatArrayOf(startX, startX + 58f, startX + 120f, startX + 212f, startX + 288f, startX + 386f, startX + 434f)
         val headers = arrayOf("Planet", "Sanskrit", "Rashi (Sign)", "Longitude", "Nakshatra", "House", "Dignity")
 
         var y = startY
@@ -427,7 +495,9 @@ object KundliPdfExporter {
         y += 12f
 
         planets.forEach { p ->
-            canvas.drawText(p.planet, colX[0], y, rowPaint)
+            val isRetro = p.isRetrograde && p.planet != "Rahu" && p.planet != "Ketu"
+            val planetLabel = if (isRetro) "${p.planet} (R)" else p.planet
+            canvas.drawText(planetLabel, colX[0], y, rowPaint)
             canvas.drawText(p.sanskritName, colX[1], y, rowPaint)
             canvas.drawText("${p.sign} (${p.rashiEnum.sanskritName})", colX[2], y, rowPaint)
             canvas.drawText(formatDegree(p.totalLongitude), colX[3], y, rowPaint)
@@ -435,7 +505,7 @@ object KundliPdfExporter {
             canvas.drawText("H${p.house}", colX[5], y, rowPaint)
 
             val dignityStr = buildString {
-                if (p.isRetrograde) append("R • ")
+                if (isRetro) append("[R] ")
                 append(p.dignity.displayName)
             }
             canvas.drawText(dignityStr, colX[6], y, rowPaint)

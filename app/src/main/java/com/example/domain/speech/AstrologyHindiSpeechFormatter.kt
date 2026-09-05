@@ -173,8 +173,17 @@ object AstrologyHindiSpeechFormatter {
             val grahaHindi = GRAHA_HINDI_MAP[planet.planet] ?: planet.sanskritName
             val rashiHindi = RASHI_HINDI_MAP[planet.sign] ?: planet.rashiEnum.sanskritName
             val houseHindi = getHouseNameHindi(planet.house)
-            val retroHindi = if (planet.isRetrograde) ", वक्री" else ""
-            sb.append("$grahaHindi $rashiHindi राशि में, $houseHindi में$retroHindi स्थित हैं। ")
+            val retroHindi = if (planet.isRetrograde && planet.planet !in listOf("Rahu", "Ketu")) ", वक्री" else ""
+            val dignityHindi = when (planet.dignity) {
+                PlanetDignity.EXALTED -> ", उच्च के"
+                PlanetDignity.DEBILITATED -> ", नीच के"
+                PlanetDignity.MOOLATRIKONA -> ", मूलत्रिकोण में"
+                PlanetDignity.OWN_SIGN -> ", स्वराशि में"
+                PlanetDignity.FRIEND -> ", मित्र राशि में"
+                PlanetDignity.NEUTRAL -> ", सम राशि में"
+                PlanetDignity.ENEMY -> ", शत्रु राशि में"
+            }
+            sb.append("$grahaHindi $rashiHindi राशि में, $houseHindi में$dignityHindi$retroHindi स्थित हैं। ")
         }
 
         sb.append("यह कुण्डली फलित वैदिक ज्योतिष के शास्त्रीय सिद्धांतों पर आधारित व्याख्या है।")
@@ -230,6 +239,9 @@ object AstrologyHindiSpeechFormatter {
             muhurta.brahmaMuhurta?.let { bm ->
                 sb.append("ब्रह्म मुहूर्त: ${bm.start.format(timeFormatter)} से ${bm.end.format(timeFormatter)}। ")
             }
+            muhurta.abhijitMuhurta?.let { am ->
+                sb.append("अभिजित मुहूर्त: ${am.start.format(timeFormatter)} से ${am.end.format(timeFormatter)}। ")
+            }
             muhurta.rahukaal?.let { rk ->
                 sb.append("राहुकाल: ${rk.start.format(timeFormatter)} से ${rk.end.format(timeFormatter)}। ")
             }
@@ -261,6 +273,7 @@ object AstrologyHindiSpeechFormatter {
             "Antardasha" to "अंतर्दशा",
             "Pratyantardasha" to "प्रत्यंतर्दशा",
             "Brahma Muhurta" to "ब्रह्म मुहूर्त",
+            "Abhijit Muhurta" to "अभिजित मुहूर्त",
             "Rahukaal" to "राहुकाल",
             "Rahu Kaal" to "राहुकाल",
             "Tithi" to "तिथि",
@@ -275,6 +288,13 @@ object AstrologyHindiSpeechFormatter {
             "Combust" to "अस्त",
             "Exalted" to "उच्च",
             "Debilitated" to "नीच",
+            "Moolatrikona" to "मूलत्रिकोण",
+            "Own Sign" to "स्वक्षेत्र",
+            "Friend Sign" to "मित्र राशि",
+            "Enemy Sign" to "शत्रु राशि",
+            "Neutral Sign" to "सम राशि",
+            "Conjunction" to "युति",
+            "Aspect" to "दृष्टि",
             "benefic" to "शुभ",
             "malefic" to "अशुभ",
             "favorable" to "अनुकूल",
@@ -308,6 +328,7 @@ object AstrologyHindiSpeechFormatter {
             .replace(Regex("[•\\-–—]"), " ")
             .replace(Regex("%"), " प्रतिशत ")
             .replace(Regex("&"), " और ")
+            .replace(":", ", ")
             .replace(Regex("\\s+"), " ")
             .replace("..", ".")
             .replace("।।", "।")

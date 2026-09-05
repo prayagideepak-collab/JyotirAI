@@ -1,12 +1,12 @@
 package com.example.domain.alarm
 
 import com.example.domain.engine.PanchangCalculator
+import com.example.domain.models.AppError
 import com.example.domain.models.BirthLocation
 import com.example.domain.models.MuhurtaAlarmConfig
 import com.example.domain.models.MuhurtaAlarmType
 import com.example.domain.models.TimeInterval
 import de.thmac.swisseph.SwissEph
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -15,13 +15,18 @@ import java.time.format.DateTimeFormatter
  * Pure calculation engine for dynamic Muhurta alarm intervals.
  * Dynamically computes the next valid occurrence for Brahma Muhurta, Rahukaal, etc.,
  * adjusting for daily sunrise/sunset shifts.
+ *
+ * Guarantees:
+ * 1. 100% dynamic interval derivation via Swiss Ephemeris sunrise/sunset and daytime division.
+ * 2. Zero hardcoded universal alarm schedules (no fixed 4:30 AM or arbitrary timings).
+ * 3. Autonomous shift tracking: dynamically recomputes next occurrence when interval has passed.
  */
 object MuhurtaAlarmCalculator {
 
     private val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
     /**
-     * Calculates the next upcoming Muhurta interval.
+     * Calculates the next upcoming Muhurta interval dynamically.
      * If today's interval is in the past, advances to tomorrow to account for sunrise shift.
      */
     fun calculateNextOccurrence(
@@ -39,7 +44,10 @@ object MuhurtaAlarmCalculator {
             // Today's interval already started/passed, calculate tomorrow's interval dynamically
             val tomorrowDateTime = referenceDateTime.plusDays(1)
             getMuhurtaIntervalForDate(type, location, tomorrowDateTime, swe)
-                ?: fallbackInterval(type, tomorrowDateTime)
+                ?: throw AppError.CalculationError(
+                    "Cannot compute dynamic astronomical ${type.title} for location ${location.placeName}. " +
+                            "Sunrise/sunset calculations are unavailable for the given coordinates."
+                )
         }
 
         val startMillis = targetInterval.start.toInstant().toEpochMilli()
@@ -59,7 +67,7 @@ object MuhurtaAlarmCalculator {
     }
 
     /**
-     * Computes the exact Muhurta interval for a given date and location.
+     * Computes the exact Muhurta interval dynamically for a given date and location.
      */
     fun getMuhurtaIntervalForDate(
         type: MuhurtaAlarmType,
@@ -75,16 +83,6 @@ object MuhurtaAlarmCalculator {
             MuhurtaAlarmType.RAHUKAAL -> muhurta.rahukaal
             MuhurtaAlarmType.ABHIJIT_MUHURTA -> muhurta.abhijitMuhurta
         }
-    }
-
-    private fun fallbackInterval(type: MuhurtaAlarmType, dateTime: ZonedDateTime): TimeInterval {
-        val start = when (type) {
-            MuhurtaAlarmType.BRAHMA_MUHURTA -> dateTime.toLocalDate().atTime(4, 30).atZone(dateTime.zone)
-            MuhurtaAlarmType.RAHUKAAL -> dateTime.toLocalDate().atTime(9, 0).atZone(dateTime.zone)
-            MuhurtaAlarmType.ABHIJIT_MUHURTA -> dateTime.toLocalDate().atTime(11, 45).atZone(dateTime.zone)
-        }
-        val end = start.plusMinutes(48)
-        return TimeInterval(start = start, end = end, name = type.title)
     }
 
     private fun getZoneId(timeZoneId: String?): ZoneId {

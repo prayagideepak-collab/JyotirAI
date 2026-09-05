@@ -306,11 +306,21 @@ object PanchangCalculator {
             end = brahmaEnd,
             name = "Brahma Muhurta"
         )
+
+        val abhijitPartMillis = daytimeMillis / 15
+        val abhijitStart = sunrise.plusNanos((abhijitPartMillis * 7 * 1_000_000L))
+        val abhijitEnd = sunrise.plusNanos((abhijitPartMillis * 8 * 1_000_000L))
+
+        val abhijitMuhurta = TimeInterval(
+            start = abhijitStart,
+            end = abhijitEnd,
+            name = "Abhijit Muhurta"
+        )
         
         return MuhurtaInfo(
             rahukaal = rahukaal,
             brahmaMuhurta = brahmaMuhurta,
-            abhijitMuhurta = null,
+            abhijitMuhurta = abhijitMuhurta,
             additionalMuhurtas = emptyList()
         )
     }

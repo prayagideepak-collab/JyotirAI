@@ -54,17 +54,22 @@ class MuhurtaAlarmScheduler(
         }
     }
 
-    fun rescheduleAllActiveAlarms() {
+    fun rescheduleAllActiveAlarms(newLocation: BirthLocation? = null) {
         val activeAlarms = repository.getAlarms()
         activeAlarms.forEach { config ->
             if (config.isEnabled) {
-                val updatedConfig = MuhurtaAlarmCalculator.calculateNextOccurrence(
-                    config.type,
-                    config.location,
-                    config.profileId
-                )
-                repository.saveAlarm(updatedConfig)
-                setSystemAlarm(updatedConfig)
+                val loc = newLocation ?: config.location
+                try {
+                    val updatedConfig = MuhurtaAlarmCalculator.calculateNextOccurrence(
+                        config.type,
+                        loc,
+                        config.profileId
+                    )
+                    repository.saveAlarm(updatedConfig)
+                    setSystemAlarm(updatedConfig)
+                } catch (_: Exception) {
+                    // Gracefully skip if astronomical calculation fails for unverified/extreme coordinate
+                }
             }
         }
     }

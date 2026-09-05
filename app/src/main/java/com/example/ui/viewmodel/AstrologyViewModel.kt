@@ -208,6 +208,7 @@ class AstrologyViewModel(
             }
             loadPanchang(location = location)
             loadTransits(location = location)
+            muhurtaAlarmScheduler?.rescheduleAllActiveAlarms(location)
         }
     }
 
@@ -271,6 +272,7 @@ class AstrologyViewModel(
                         } catch (_: Exception) {}
                     }
                     calculateBirthChartInternal(profile.birthData)
+                    muhurtaAlarmScheduler?.rescheduleAllActiveAlarms(profile.location)
                 }
             }
         }

@@ -29,7 +29,7 @@ sealed interface SpeechState {
  */
 class JyotirAiSpeechManager(
     private val context: Context,
-    private val targetLocale: Locale = Locale("hi", "IN")
+    private val targetLocale: Locale = Locale.forLanguageTag("hi-IN")
 ) : TextToSpeech.OnInitListener {
 
     private val _speechState = MutableStateFlow<SpeechState>(SpeechState.Idle)
@@ -61,7 +61,7 @@ class JyotirAiSpeechManager(
 
             if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
                 // Try fallback to generic Hindi "hi"
-                langResult = localTts.setLanguage(Locale("hi"))
+                langResult = localTts.setLanguage(Locale.forLanguageTag("hi"))
             }
 
             if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
