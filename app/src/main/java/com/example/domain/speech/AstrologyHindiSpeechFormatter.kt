@@ -86,7 +86,7 @@ object AstrologyHindiSpeechFormatter {
     fun formatDailyRashifal(rashifal: DailyRashifal): String {
         val sb = StringBuilder()
 
-        val dateFormatted = rashifal.date.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))
+        val dateFormatted = rashifal.targetDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))
         sb.append("ज्योतिर् एआई दैनिक राशिफल। ")
         sb.append("दिनांक $dateFormatted। ")
         sb.append("दैनिक ऊर्जा समन्वय ${rashifal.energyScore} प्रतिशत। ")
@@ -94,10 +94,10 @@ object AstrologyHindiSpeechFormatter {
         sb.append("प्राथमिक एकाग्रता: ${translateToHindiSpeech(rashifal.primaryFocus)}। ")
 
         // Astrological context
-        val moonRashiHindi = RASHI_HINDI_MAP[rashifal.astrologicalAlignment.moonRashi] ?: rashifal.astrologicalAlignment.moonRashi
-        val nakshatraHindi = NAKSHATRA_HINDI_MAP[rashifal.astrologicalAlignment.transitNakshatra] ?: rashifal.astrologicalAlignment.transitNakshatra
-        val dashaLordHindi = GRAHA_HINDI_MAP[rashifal.astrologicalAlignment.activeMahadashaLord] ?: rashifal.astrologicalAlignment.activeMahadashaLord
-        val antardashaLordHindi = GRAHA_HINDI_MAP[rashifal.astrologicalAlignment.activeAntardashaLord] ?: rashifal.astrologicalAlignment.activeAntardashaLord
+        val moonRashiHindi = RASHI_HINDI_MAP[rashifal.moonSign] ?: rashifal.moonSign
+        val nakshatraHindi = NAKSHATRA_HINDI_MAP[rashifal.birthNakshatra] ?: rashifal.birthNakshatra
+        val dashaLordHindi = GRAHA_HINDI_MAP[rashifal.currentMahadashaLord] ?: rashifal.currentMahadashaLord
+        val antardashaLordHindi = GRAHA_HINDI_MAP[rashifal.currentAntardashaLord] ?: rashifal.currentAntardashaLord
 
         sb.append("ज्योतिषीय संदर्भ: ")
         sb.append("गोचर चन्द्रमा $moonRashiHindi राशि और $nakshatraHindi नक्षत्र में संचरण कर रहे हैं। ")
@@ -107,8 +107,8 @@ object AstrologyHindiSpeechFormatter {
         if (rashifal.keyInfluences.isNotEmpty()) {
             sb.append("मुख्य प्रभाव: ")
             rashifal.keyInfluences.forEach { influence ->
-                val sourceHindi = translateToHindiSpeech(influence.astrologicalSource)
-                val textHindi = translateToHindiSpeech(influence.interpretationText)
+                val sourceHindi = translateToHindiSpeech(influence.contributingFactor)
+                val textHindi = translateToHindiSpeech(influence.description)
                 sb.append("$sourceHindi, $textHindi। ")
             }
         }
@@ -117,7 +117,7 @@ object AstrologyHindiSpeechFormatter {
         if (rashifal.priorities.isNotEmpty()) {
             sb.append("आज के अनुकूल कार्य एवं प्राथमिकताएं: ")
             rashifal.priorities.forEach { priority ->
-                sb.append("${translateToHindiSpeech(priority)}। ")
+                sb.append("${translateToHindiSpeech(priority.advice)}। ")
             }
         }
 
@@ -125,15 +125,15 @@ object AstrologyHindiSpeechFormatter {
         if (rashifal.cautions.isNotEmpty()) {
             sb.append("सावधानी और सतर्कता के क्षेत्र: ")
             rashifal.cautions.forEach { caution ->
-                sb.append("${translateToHindiSpeech(caution)}। ")
+                sb.append("${translateToHindiSpeech(caution.warning)}। ")
             }
         }
 
         // Traditional Remedies
-        if (rashifal.remedies.isNotEmpty()) {
+        if (rashifal.traditionalRemedies.isNotEmpty()) {
             sb.append("पारंपरिक उपचारात्मक सुझाव: ")
-            rashifal.remedies.forEach { remedy ->
-                sb.append("${translateToHindiSpeech(remedy)}। ")
+            rashifal.traditionalRemedies.forEach { remedy ->
+                sb.append("${translateToHindiSpeech(remedy.practice)}। ")
             }
         }
 
@@ -149,28 +149,29 @@ object AstrologyHindiSpeechFormatter {
     fun formatKundliSummary(profile: AstrologyProfile, activeChart: Chart): String {
         val sb = StringBuilder()
         val birthData = profile.birthData
-        val dateFormatted = "${birthData.day} ${getMonthNameHindi(birthData.month)} ${birthData.year}"
-        val timeFormatted = String.format("%02d:%02d", birthData.hour, birthData.minute)
+        val dateFormatted = "${birthData.date.dayOfMonth} ${getMonthNameHindi(birthData.date.monthValue)} ${birthData.date.year}"
+        val timeFormatted = String.format("%02d:%02d", birthData.time.hour, birthData.time.minute)
 
         sb.append("ज्योतिर् एआई कुण्डली विवरण। ")
         sb.append("जातक का नाम: ${birthData.name}। ")
         sb.append("जन्म तिथि: $dateFormatted, समय: $timeFormatted, स्थान: ${birthData.location.placeName}। ")
 
-        val ascSign = RASHI_HINDI_MAP[profile.ascendant.rashi.name] ?: profile.ascendant.rashi.sanskritName
+        val ascRashiEnum = com.example.domain.models.Rashi.fromIndex(profile.lagnaSignIndex)
+        val ascSign = RASHI_HINDI_MAP[ascRashiEnum.name] ?: ascRashiEnum.sanskritName
         sb.append("लग्न: $ascSign लग्न। ")
 
-        val chartTitleHindi = when (activeChart.type) {
+        val chartTitleHindi = when (activeChart.vargaType) {
             VargaType.D1 -> "लग्न कुण्डली (डी १)"
             VargaType.D9 -> "नवांश कुण्डली (डी ९)"
             VargaType.D10 -> "दशांश कुण्डली (डी १०)"
-            else -> "${activeChart.title} (${activeChart.type.name})"
+            else -> "${activeChart.title} (${activeChart.vargaType.name})"
         }
         sb.append("प्रदर्शित चक्र: $chartTitleHindi। ")
 
         sb.append("मुख्य ग्रह स्थितियां: ")
-        activeChart.planets.forEach { planet ->
-            val grahaHindi = GRAHA_HINDI_MAP[planet.name] ?: planet.sanskritName
-            val rashiHindi = RASHI_HINDI_MAP[planet.rashi.name] ?: planet.rashi.sanskritName
+        activeChart.positions.forEach { planet ->
+            val grahaHindi = GRAHA_HINDI_MAP[planet.planet] ?: planet.sanskritName
+            val rashiHindi = RASHI_HINDI_MAP[planet.sign] ?: planet.rashiEnum.sanskritName
             val houseHindi = getHouseNameHindi(planet.house)
             val retroHindi = if (planet.isRetrograde) ", वक्री" else ""
             sb.append("$grahaHindi $rashiHindi राशि में, $houseHindi में$retroHindi स्थित हैं। ")
@@ -189,12 +190,12 @@ object AstrologyHindiSpeechFormatter {
 
         val currentMaha = timeline.currentMahadasha
         if (currentMaha != null) {
-            val mahaPlanet = GRAHA_HINDI_MAP[currentMaha.planet.displayName] ?: currentMaha.planet.sanskritName
+            val mahaPlanet = GRAHA_HINDI_MAP[currentMaha.planet.lord] ?: currentMaha.planet.sanskritName
             sb.append("वर्तमान महादशा $mahaPlanet की है। ")
 
             val currentAntar = timeline.currentAntardasha
             if (currentAntar != null) {
-                val antarPlanet = GRAHA_HINDI_MAP[currentAntar.planet.displayName] ?: currentAntar.planet.sanskritName
+                val antarPlanet = GRAHA_HINDI_MAP[currentAntar.antardashaLord.lord] ?: currentAntar.antardashaLord.sanskritName
                 sb.append("वर्तमान अंतर्दशा $antarPlanet की है। ")
             }
         }

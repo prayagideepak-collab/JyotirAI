@@ -6,45 +6,57 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class AstrologyHindiSpeechFormatterTest {
 
     @Test
     fun testFormatDailyRashifal_preservesSanskritTermsAndRemovesMarkdown() {
         val rashifal = DailyRashifal(
-            profileId = "profile_1",
+            defaultProfileId = "profile_1",
             profileName = "Aarav",
-            date = LocalDate.of(2026, 9, 5),
+            targetDate = LocalDate.of(2026, 9, 5),
+            targetDateTime = ZonedDateTime.now(),
+            birthLocationName = "New Delhi, India",
             dailyTheme = "Constructive Communication & Career Focus",
-            primaryFocus = "Express clarity in discussions with Saturn's guidance",
             energyScore = 84,
-            astrologicalAlignment = AstrologicalAlignment(
-                moonRashi = "Gemini",
-                transitNakshatra = "Punarvasu",
-                activeMahadashaLord = "Jupiter",
-                activeAntardashaLord = "Mercury",
-                isMoonInDusthana = false,
-                taraBalaCategory = "Mitra",
-                isTaraBalaFavorable = true,
-                ashtakavargaScore = 32
-            ),
+            primaryFocus = "Express clarity in discussions with Saturn's guidance",
+            lagna = "Aries",
+            moonSign = "Gemini",
+            birthNakshatra = "Punarvasu",
+            currentMahadashaLord = "Jupiter",
+            currentAntardashaLord = "Mercury",
+            transitMoonHouseFromNatalMoon = 1,
+            transitMoonHouseFromLagna = 1,
+            taraBala = TaraBalaInfo(taraNumber = 8, taraName = "Mitra", quality = "Favorable", description = "Harmonious collaboration"),
             keyInfluences = listOf(
-                KeyInfluence(
-                    category = "Dasha",
-                    astrologicalSource = "Jupiter Mahadasha and Mercury Antardasha",
-                    interpretationText = "Intellectual pursuits and communication align favorably."
+                AstrologicalInfluence(
+                    title = "Dasha",
+                    description = "Intellectual pursuits and communication align favorably.",
+                    contributingFactor = "Jupiter Mahadasha and Mercury Antardasha",
+                    impactType = ImpactType.FAVORABLE
                 )
             ),
-            priorities = listOf("Focus on scholarly research and financial planning"),
-            cautions = listOf("Avoid hasty arguments during afternoon hours"),
-            timingGuidance = TimingGuidance(
-                brahmaMuhurta = "04:35 AM - 05:22 AM",
-                abhijitMuhurta = "11:50 AM - 12:40 PM",
-                rahukaal = "09:10 AM - 10:45 AM",
-                recommendedTimeWindow = "Morning hours for contemplation"
+            priorities = listOf(DailyRecommendation("Focus", "Focus on scholarly research and financial planning", "Astrological")),
+            cautions = listOf(DailyCaution("Caution", "Avoid hasty arguments during afternoon hours", "Astrological")),
+            timingGuidance = DailyTimingGuidance(
+                brahmaMuhurtaWindow = "04:35 AM - 05:22 AM",
+                brahmaMuhurtaAdvice = null,
+                rahukaalWindow = "09:10 AM - 10:45 AM",
+                rahukaalAdvice = null,
+                abhijitMuhurtaWindow = "11:50 AM - 12:40 PM"
             ),
-            traditionalRemedies = listOf("Practice Vishnu Sahasranama or mindful contemplation"),
-            birthLocationName = "New Delhi, India"
+            traditionalRemedies = listOf(TraditionalRemedy("Remedy", "Practice Vishnu Sahasranama or mindful contemplation", "Jupiter", "Context")),
+            varaName = "Somavara",
+            tithiName = "Pratipada",
+            paksha = "Shukla",
+            nakshatraName = "Punarvasu",
+            yogaName = "Vishkambha",
+            karanaName = "Bava",
+            sunriseFormatted = "06:00 AM",
+            sunsetFormatted = "06:00 PM",
+            astrologicalFactorsSummary = "Summary",
+            ethicalDisclaimer = "Disclaimer"
         )
 
         val speechText = AstrologyHindiSpeechFormatter.formatDailyRashifal(rashifal)
@@ -73,52 +85,53 @@ class AstrologyHindiSpeechFormatterTest {
             name = "Rohan Verma",
             date = LocalDate.of(1990, 5, 20),
             time = LocalTime.of(10, 15),
-            location = BirthLocation(28.6139, 77.2090, "New Delhi", true, "verified"),
+            location = BirthLocation(28.6139, 77.2090, "New Delhi", isVerified = true),
             timeZone = ZoneId.of("Asia/Kolkata")
         )
         val rashiChart = Chart(
             title = "Lagna Chart (D1)",
-            type = VargaType.D1,
-            planets = listOf(
+            type = "D1",
+            vargaType = VargaType.D1,
+            positions = listOf(
                 PlanetPosition(
-                    name = "Sun",
+                    planet = "Sun",
                     sanskritName = "Surya",
-                    longitude = 35.5,
-                    rashi = Rashi.TAURUS,
-                    rashiDegree = 5.5,
+                    totalLongitude = 35.5,
+                    sign = "Taurus",
+                    signIndex = 1,
+                    degreeInSign = 5.5,
                     house = 11,
-                    nakshatra = Nakshatra.KRITTIKA,
+                    nakshatra = "Krittika",
+                    nakshatraLord = "Sun",
                     nakshatraPada = 3,
                     isRetrograde = false,
                     speed = 1.0,
-                    dignity = PlanetDignity.FRIEND
+                    abbreviation = "Su"
                 )
-            ),
-            houses = emptyList(),
-            ascendantRashi = Rashi.CANCER
+            )
         )
         val profile = AstrologyProfile(
             birthData = birthData,
             rashiChart = rashiChart,
-            divisionalCharts = mapOf(VargaType.D1 to rashiChart),
-            ascendant = PlanetPosition(
-                name = "Ascendant",
-                sanskritName = "Lagna",
-                longitude = 95.0,
-                rashi = Rashi.CANCER,
-                rashiDegree = 5.0,
-                house = 1,
-                nakshatra = Nakshatra.PUSHYA,
-                nakshatraPada = 1,
-                isRetrograde = false,
-                speed = 0.0,
-                dignity = PlanetDignity.NEUTRAL
-            ),
-            moonSign = Rashi.PISCES,
-            sunSign = Rashi.TAURUS,
-            nakshatra = NakshatraInfo(Nakshatra.PUSHYA, 1, 0.5),
-            ayanamsaName = "Chitra Paksha (Lahiri)",
-            ayanamsaValue = 23.7
+            lagna = "Cancer",
+            lagnaSignIndex = 3,
+            lagnaLongitude = 95.0,
+            lagnaDegreeInSign = 5.0,
+            lagnaNakshatra = "Pushya",
+            lagnaPada = 1,
+            moonSign = "Pisces",
+            moonSignIndex = 11,
+            nakshatra = "Pushya",
+            nakshatraPada = 1,
+            nakshatraLord = "Saturn",
+            planetPositions = emptyList(),
+            metadata = CalculationMetadata(
+                ephemerisEngine = "Swiss",
+                ayanamsaName = "Lahiri",
+                ayanamsaDegree = 23.7,
+                julianDayUt = 2451545.0,
+                calculatedUtcIso = "2026-09-05T00:00:00Z"
+            )
         )
 
         val speechText = AstrologyHindiSpeechFormatter.formatKundliSummary(profile, rashiChart)

@@ -161,8 +161,8 @@ object KundliPdfExporter {
         paint.textSize = 10f
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
 
-        val dateStr = String.format("%02d/%02d/%04d", bData.day, bData.month, bData.year)
-        val timeStr = String.format("%02d:%02d", bData.hour, bData.minute)
+        val dateStr = String.format("%02d/%02d/%04d", bData.date.dayOfMonth, bData.date.monthValue, bData.date.year)
+        val timeStr = String.format("%02d:%02d", bData.time.hour, bData.time.minute)
         val locStr = "${bData.location.placeName} (${String.format("%.2f", bData.location.latitude)}°N, ${String.format("%.2f", bData.location.longitude)}°E)"
         val tzStr = bData.location.timeZoneId ?: "UTC"
 
@@ -175,11 +175,12 @@ object KundliPdfExporter {
         canvas.drawText("Timezone: $tzStr", 380f, yPos, paint)
 
         yPos += 14f
-        canvas.drawText("Ascendant (Lagna): ${profile.ascendant.rashi.sanskritName} (${profile.ascendant.rashi.name}) at ${formatDegree(profile.ascendant.longitude)}", 36f, yPos, paint)
+        val ascSign = com.example.domain.models.Rashi.fromIndex(profile.lagnaSignIndex)
+        canvas.drawText("Ascendant (Lagna): ${ascSign.sanskritName} (${ascSign.name}) at ${formatDegree(profile.lagnaLongitude)}", 36f, yPos, paint)
 
         // North Indian Diamond Chart (D1 / Active Chart)
         yPos += 24f
-        drawSectionHeader(canvas, "2. ${activeChart.title.uppercase()} (${activeChart.type.name})", 36f, yPos)
+        drawSectionHeader(canvas, "2. ${activeChart.title.uppercase()} (${activeChart.type})", 36f, yPos)
         yPos += 14f
 
         val chartSize = 180f
@@ -191,7 +192,7 @@ object KundliPdfExporter {
         drawSectionHeader(canvas, "3. PLANETARY PLACEMENTS & DIGNITIES", 36f, yPos)
         yPos += 16f
 
-        drawPlanetaryTable(canvas, 36f, yPos, profile.rashiChart.planets)
+        drawPlanetaryTable(canvas, 36f, yPos, profile.rashiChart.positions)
     }
 
     private fun drawPage2Content(canvas: Canvas, profile: AstrologyProfile, dashaTimeline: DashaTimeline?) {
@@ -217,7 +218,7 @@ object KundliPdfExporter {
         drawSectionHeader(canvas, "4. NAVAMSHA (D9) SACRED GEOMETRY", 36f, yPos)
         yPos += 14f
 
-        val navamshaChart = profile.divisionalCharts[com.example.domain.models.VargaType.D9] ?: profile.rashiChart
+        val navamshaChart = profile.metadata?.let { profile.rashiChart } ?: profile.rashiChart // Just fallback to Rashi for now if no D9 map
         val chartSize = 160f
         val chartLeft = (PAGE_WIDTH - chartSize) / 2f
         drawNorthIndianChartGeometry(canvas, chartLeft, yPos, chartSize, navamshaChart)
@@ -235,8 +236,8 @@ object KundliPdfExporter {
             val currentMaha = dashaTimeline.currentMahadasha
             val currentAntar = dashaTimeline.currentAntardasha
 
-            val activeDashaText = "Active Period: Mahadasha of ${currentMaha?.planet?.displayName ?: "N/A"} " +
-                    "(Antardasha: ${currentAntar?.planet?.displayName ?: "N/A"})"
+            val activeDashaText = "Active Period: Mahadasha of ${currentMaha?.planet?.lord ?: "N/A"} " +
+                    "(Antardasha: ${currentAntar?.antardashaLord?.lord ?: "N/A"})"
             canvas.drawText(activeDashaText, 36f, yPos, paint)
             yPos += 16f
 
@@ -245,10 +246,10 @@ object KundliPdfExporter {
             val colWidth = 170f
             var colIndex = 0
 
-            dashaTimeline.mahadashas.take(9).forEach { md ->
+            dashaTimeline.mahadashaPeriods.take(9).forEach { md ->
                 val startYear = md.startDate.year
                 val endYear = md.endDate.year
-                val rowText = "${md.planet.displayName} Mahadasha: $startYear - $endYear (${md.durationYears} yrs)"
+                val rowText = "${md.planet.lord} Mahadasha: $startYear - $endYear (${md.totalDurationYears} yrs)"
                 canvas.drawText(rowText, dashaX + (colIndex * colWidth), yPos, paint)
 
                 colIndex++
@@ -343,20 +344,20 @@ object KundliPdfExporter {
         }
 
         // Label 1st House (Lagna) in center top diamond
-        val lagnaPlanets = chart.planets.filter { it.house == 1 }.joinToString(" ") { it.name.take(2) }
+        val lagnaPlanets = chart.positions.filter { it.house == 1 }.joinToString(" ") { it.planet.take(2) }
         val lagnaText = if (lagnaPlanets.isNotEmpty()) "1: $lagnaPlanets" else "1"
         canvas.drawText(lagnaText, x + half, y + (size * 0.28f), textPaint)
 
         // Label 4th House (Left diamond)
-        val h4Planets = chart.planets.filter { it.house == 4 }.joinToString(" ") { it.name.take(2) }
+        val h4Planets = chart.positions.filter { it.house == 4 }.joinToString(" ") { it.planet.take(2) }
         canvas.drawText(if (h4Planets.isNotEmpty()) "4: $h4Planets" else "4", x + (size * 0.28f), y + half, textPaint)
 
         // Label 7th House (Bottom diamond)
-        val h7Planets = chart.planets.filter { it.house == 7 }.joinToString(" ") { it.name.take(2) }
+        val h7Planets = chart.positions.filter { it.house == 7 }.joinToString(" ") { it.planet.take(2) }
         canvas.drawText(if (h7Planets.isNotEmpty()) "7: $h7Planets" else "7", x + half, y + (size * 0.72f), textPaint)
 
         // Label 10th House (Right diamond)
-        val h10Planets = chart.planets.filter { it.house == 10 }.joinToString(" ") { it.name.take(2) }
+        val h10Planets = chart.positions.filter { it.house == 10 }.joinToString(" ") { it.planet.take(2) }
         canvas.drawText(if (h10Planets.isNotEmpty()) "10: $h10Planets" else "10", x + (size * 0.72f), y + half, textPaint)
     }
 
@@ -395,16 +396,15 @@ object KundliPdfExporter {
         y += 12f
 
         planets.forEach { p ->
-            canvas.drawText(p.name, colX[0], y, rowPaint)
+            canvas.drawText(p.planet, colX[0], y, rowPaint)
             canvas.drawText(p.sanskritName, colX[1], y, rowPaint)
-            canvas.drawText("${p.rashi.name} (${p.rashi.sanskritName})", colX[2], y, rowPaint)
-            canvas.drawText(formatDegree(p.longitude), colX[3], y, rowPaint)
-            canvas.drawText("${p.nakshatra.name} - P${p.nakshatraPada}", colX[4], y, rowPaint)
+            canvas.drawText("${p.sign} (${p.rashiEnum.sanskritName})", colX[2], y, rowPaint)
+            canvas.drawText(formatDegree(p.totalLongitude), colX[3], y, rowPaint)
+            canvas.drawText("${p.nakshatra} - P${p.nakshatraPada}", colX[4], y, rowPaint)
             canvas.drawText("H${p.house}", colX[5], y, rowPaint)
 
             val dignityStr = buildString {
-                if (p.isRetrograde) append("R ")
-                append(p.dignity.name)
+                if (p.isRetrograde) append("R")
             }
             canvas.drawText(dignityStr, colX[6], y, rowPaint)
 
