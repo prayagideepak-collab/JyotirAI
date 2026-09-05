@@ -112,5 +112,101 @@ class KundliPdfExporterTest {
             }
         }
     }
+
+    @Test
+    fun testVargaCalculator_D9IsDistinctFromD1() {
+        val birthData = BirthData(
+            name = "Aarav Sharma",
+            date = LocalDate.of(1995, 8, 15),
+            time = LocalTime.of(14, 30),
+            location = BirthLocation(28.6139, 77.2090, "New Delhi", isVerified = true),
+            timeZone = ZoneId.of("Asia/Kolkata")
+        )
+        val sunD1 = PlanetPosition(
+            planet = "Sun",
+            sign = "Leo",
+            signIndex = 4,
+            totalLongitude = 120.5,
+            degreeInSign = 0.5,
+            house = 9,
+            isRetrograde = false,
+            nakshatra = "Magha",
+            nakshatraLord = "Ketu",
+            nakshatraPada = 1,
+            speed = 0.98
+        )
+        val rashiChart = Chart(
+            title = "Lagna Chart (D1)",
+            type = "D1",
+            vargaType = VargaType.D1,
+            ascendantSign = "Scorpio",
+            ascendantSignIndex = 7,
+            ascendantDegreeInSign = 10.0,
+            positions = listOf(sunD1)
+        )
+        val profile = AstrologyProfile(
+            birthData = birthData,
+            rashiChart = rashiChart,
+            lagna = "Scorpio",
+            lagnaSignIndex = 7,
+            lagnaLongitude = 220.0,
+            lagnaDegreeInSign = 10.0,
+            lagnaNakshatra = "Anuradha",
+            lagnaPada = 3,
+            moonSign = "Pisces",
+            moonSignIndex = 11,
+            nakshatra = "Revati",
+            nakshatraPada = 3,
+            nakshatraLord = "Mercury",
+            planetPositions = listOf(sunD1),
+            metadata = CalculationMetadata(
+                ephemerisEngine = "Swiss",
+                ayanamsaName = "Lahiri",
+                ayanamsaDegree = 23.7,
+                julianDayUt = 2451545.0,
+                calculatedUtcIso = "2026-09-05T00:00:00Z"
+            )
+        )
+
+        // Calculate D9 Navamsha chart
+        val d9Chart = com.example.domain.engine.VargaCalculator.calculateVargaChart(profile, VargaType.D9)
+
+        assertEquals("D9", d9Chart.type)
+        assertEquals(VargaType.D9, d9Chart.vargaType)
+        // Scorpio 10° (total longitude 220.0°): (220 / 3.3333) = pada 66. 66 % 12 = 6 (Libra)
+        // Lagna in D9 must be Libra (6), distinct from Scorpio (7)
+        assertNotEquals("D9 Lagna must be distinct from D1 Lagna", profile.lagnaSignIndex, d9Chart.ascendantSignIndex)
+        assertEquals(6, d9Chart.ascendantSignIndex) // Libra
+
+        // Sun at 120.5° (Leo 0.5° in D1): Leo is a fixed sign, starts from 9th = Aries (0)
+        // In D1, Sun is in Leo (4); in D9, Sun is in Aries (0)
+        val sunD9 = d9Chart.positions.first { it.planet == "Sun" }
+        assertNotEquals("Sun sign in D9 must differ from D1", sunD1.signIndex, sunD9.signIndex)
+        assertEquals(0, sunD9.signIndex) // Aries
+    }
+
+    @Test
+    fun testPlanetaryDignityCalculations() {
+        // Sun in Aries (0) -> Exalted
+        assertEquals(PlanetDignity.EXALTED, PlanetDignity.calculate("Sun", 0, 5.0))
+        // Sun in Libra (6) -> Debilitated
+        assertEquals(PlanetDignity.DEBILITATED, PlanetDignity.calculate("Sun", 6, 10.0))
+        // Sun in Leo (4) 0-20° -> Moolatrikona
+        assertEquals(PlanetDignity.MOOLATRIKONA, PlanetDignity.calculate("Sun", 4, 15.0))
+        // Sun in Leo (4) 20-30° -> Own Sign
+        assertEquals(PlanetDignity.OWN_SIGN, PlanetDignity.calculate("Sun", 4, 25.0))
+
+        // Moon in Taurus (1) 0-3° -> Exalted
+        assertEquals(PlanetDignity.EXALTED, PlanetDignity.calculate("Moon", 1, 2.0))
+        // Moon in Scorpio (7) -> Debilitated
+        assertEquals(PlanetDignity.DEBILITATED, PlanetDignity.calculate("Moon", 7, 10.0))
+        // Moon in Cancer (3) -> Own Sign
+        assertEquals(PlanetDignity.OWN_SIGN, PlanetDignity.calculate("Moon", 3, 10.0))
+
+        // Jupiter in Cancer (3) -> Exalted
+        assertEquals(PlanetDignity.EXALTED, PlanetDignity.calculate("Jupiter", 3, 4.0))
+        // Jupiter in Capricorn (9) -> Debilitated
+        assertEquals(PlanetDignity.DEBILITATED, PlanetDignity.calculate("Jupiter", 9, 5.0))
+    }
 }
 

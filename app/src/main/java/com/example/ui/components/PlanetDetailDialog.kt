@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.domain.models.PlanetDignity
 import com.example.domain.models.PlanetPosition
 import com.example.domain.models.Rashi
 import com.example.ui.theme.*
@@ -179,6 +180,31 @@ fun PlanetDetailDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    val dignity = planet.dignity
+                    val dignityColor = when (dignity) {
+                        PlanetDignity.EXALTED -> Color(0xFFFFD700)
+                        PlanetDignity.MOOLATRIKONA, PlanetDignity.OWN_SIGN -> Color(0xFF81C784)
+                        PlanetDignity.FRIEND -> Color(0xFF64B5F6)
+                        PlanetDignity.NEUTRAL -> Color(0xFFE0E0E0)
+                        PlanetDignity.ENEMY -> Color(0xFFFFB74D)
+                        PlanetDignity.DEBILITATED -> Color(0xFFE57373)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(dignityColor.copy(alpha = 0.15f))
+                            .border(1.dp, dignityColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "${dignity.displayName} (${dignity.sanskritName})",
+                            color = dignityColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }

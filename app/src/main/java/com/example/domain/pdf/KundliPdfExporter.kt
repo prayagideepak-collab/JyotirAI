@@ -9,10 +9,12 @@ import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
+import com.example.domain.engine.VargaCalculator
 import com.example.domain.models.AstrologyProfile
 import com.example.domain.models.Chart
 import com.example.domain.models.DashaTimeline
 import com.example.domain.models.PlanetPosition
+import com.example.domain.models.VargaType
 import java.io.File
 import java.io.FileOutputStream
 import java.time.ZonedDateTime
@@ -218,10 +220,39 @@ object KundliPdfExporter {
         drawSectionHeader(canvas, "4. NAVAMSHA (D9) SACRED GEOMETRY", 36f, yPos)
         yPos += 14f
 
-        val navamshaChart = profile.metadata?.let { profile.rashiChart } ?: profile.rashiChart // Just fallback to Rashi for now if no D9 map
+        val navamshaChart = try {
+            VargaCalculator.calculateVargaChart(profile, VargaType.D9)
+        } catch (_: Exception) {
+            null
+        }
         val chartSize = 160f
         val chartLeft = (PAGE_WIDTH - chartSize) / 2f
-        drawNorthIndianChartGeometry(canvas, chartLeft, yPos, chartSize, navamshaChart)
+
+        if (navamshaChart != null) {
+            drawNorthIndianChartGeometry(canvas, chartLeft, yPos, chartSize, navamshaChart)
+            val subPaint = Paint().apply {
+                color = Color.rgb(80, 80, 95)
+                textSize = 8.5f
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+                textAlign = Paint.Align.CENTER
+                isAntiAlias = true
+            }
+            canvas.drawText("D9 Navamsha Lagna: ${navamshaChart.ascendantSign}", PAGE_WIDTH / 2f, yPos + chartSize + 12f, subPaint)
+        } else {
+            val errorBoxPaint = Paint().apply {
+                color = Color.rgb(248, 242, 242)
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(chartLeft, yPos, chartLeft + chartSize, yPos + chartSize, errorBoxPaint)
+            val unavailPaint = Paint().apply {
+                color = Color.rgb(180, 50, 50)
+                textSize = 9.5f
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                textAlign = Paint.Align.CENTER
+                isAntiAlias = true
+            }
+            canvas.drawText("Navamsha (D9) Unavailable", PAGE_WIDTH / 2f, yPos + (chartSize / 2f), unavailPaint)
+        }
 
         // Vimshottari Dasha Section
         yPos += chartSize + 26f
@@ -383,7 +414,7 @@ object KundliPdfExporter {
             isAntiAlias = true
         }
 
-        val colX = floatArrayOf(startX, startX + 70f, startX + 150f, startX + 220f, startX + 310f, startX + 370f, startX + 440f)
+        val colX = floatArrayOf(startX, startX + 68f, startX + 144f, startX + 226f, startX + 304f, startX + 372f, startX + 434f)
         val headers = arrayOf("Planet", "Sanskrit", "Rashi (Sign)", "Longitude", "Nakshatra", "House", "Dignity")
 
         var y = startY
@@ -404,7 +435,8 @@ object KundliPdfExporter {
             canvas.drawText("H${p.house}", colX[5], y, rowPaint)
 
             val dignityStr = buildString {
-                if (p.isRetrograde) append("R")
+                if (p.isRetrograde) append("R • ")
+                append(p.dignity.displayName)
             }
             canvas.drawText(dignityStr, colX[6], y, rowPaint)
 

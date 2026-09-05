@@ -122,6 +122,104 @@ enum class Nakshatra(
 }
 
 /**
+ * Classical Parashari Planetary Dignity (Avastha / Sthana Bala aspect)
+ */
+enum class PlanetDignity(val displayName: String, val sanskritName: String) {
+    EXALTED("Exalted", "उच्च"),
+    MOOLATRIKONA("Moolatrikona", "मूलत्रिकोण"),
+    OWN_SIGN("Own Sign", "स्वक्षेत्र"),
+    FRIEND("Friend", "मित्र"),
+    NEUTRAL("Neutral", "सम"),
+    ENEMY("Enemy", "शत्रु"),
+    DEBILITATED("Debilitated", "नीच");
+
+    companion object {
+        fun calculate(planet: String, signIndex: Int, degreeInSign: Double = 0.0): PlanetDignity {
+            val p = planet.lowercase().trim()
+            return when (p) {
+                "sun", "surya" -> when (signIndex) {
+                    0 -> EXALTED // Aries (Deep exaltation at 10°)
+                    6 -> DEBILITATED // Libra (Deep debilitation at 10°)
+                    4 -> if (degreeInSign <= 20.0) MOOLATRIKONA else OWN_SIGN // Leo
+                    3, 7, 8, 11 -> FRIEND // Cancer, Scorpio, Sagittarius, Pisces
+                    2, 5 -> NEUTRAL // Gemini, Virgo
+                    1, 9, 10 -> ENEMY // Taurus, Capricorn, Aquarius
+                    else -> NEUTRAL
+                }
+                "moon", "chandra" -> when (signIndex) {
+                    1 -> if (degreeInSign <= 3.0) EXALTED else MOOLATRIKONA // Taurus
+                    7 -> DEBILITATED // Scorpio
+                    3 -> OWN_SIGN // Cancer
+                    0, 2, 4, 5 -> FRIEND // Aries, Gemini, Leo, Virgo
+                    else -> NEUTRAL
+                }
+                "mars", "mangala" -> when (signIndex) {
+                    9 -> EXALTED // Capricorn (Deep exaltation at 28°)
+                    3 -> DEBILITATED // Cancer (Deep debilitation at 28°)
+                    0 -> if (degreeInSign <= 12.0) MOOLATRIKONA else OWN_SIGN // Aries
+                    7 -> OWN_SIGN // Scorpio
+                    4, 8, 11 -> FRIEND // Leo, Sagittarius, Pisces
+                    1, 6 -> NEUTRAL // Taurus, Libra
+                    2, 5 -> ENEMY // Gemini, Virgo
+                    else -> NEUTRAL
+                }
+                "mercury", "budha" -> when (signIndex) {
+                    5 -> if (degreeInSign <= 15.0) EXALTED else if (degreeInSign <= 20.0) MOOLATRIKONA else OWN_SIGN // Virgo
+                    11 -> DEBILITATED // Pisces (Deep debilitation at 15°)
+                    2 -> OWN_SIGN // Gemini
+                    1, 4, 6 -> FRIEND // Taurus, Leo, Libra
+                    0, 7, 9, 10 -> NEUTRAL // Aries, Scorpio, Capricorn, Aquarius
+                    3 -> ENEMY // Cancer
+                    else -> NEUTRAL
+                }
+                "jupiter", "guru" -> when (signIndex) {
+                    3 -> EXALTED // Cancer (Deep exaltation at 5°)
+                    9 -> DEBILITATED // Capricorn (Deep debilitation at 5°)
+                    8 -> if (degreeInSign <= 10.0) MOOLATRIKONA else OWN_SIGN // Sagittarius
+                    11 -> OWN_SIGN // Pisces
+                    0, 4, 7 -> FRIEND // Aries, Leo, Scorpio
+                    10 -> NEUTRAL // Aquarius
+                    1, 2, 5, 6 -> ENEMY // Taurus, Gemini, Virgo, Libra
+                    else -> NEUTRAL
+                }
+                "venus", "shukra" -> when (signIndex) {
+                    11 -> EXALTED // Pisces (Deep exaltation at 27°)
+                    5 -> DEBILITATED // Virgo (Deep debilitation at 27°)
+                    6 -> if (degreeInSign <= 15.0) MOOLATRIKONA else OWN_SIGN // Libra
+                    1 -> OWN_SIGN // Taurus
+                    2, 9, 10 -> FRIEND // Gemini, Capricorn, Aquarius
+                    7, 8 -> NEUTRAL // Scorpio, Sagittarius
+                    0, 3, 4 -> ENEMY // Aries, Cancer, Leo
+                    else -> NEUTRAL
+                }
+                "saturn", "shani" -> when (signIndex) {
+                    6 -> EXALTED // Libra (Deep exaltation at 20°)
+                    0 -> DEBILITATED // Aries (Deep debilitation at 20°)
+                    10 -> if (degreeInSign <= 20.0) MOOLATRIKONA else OWN_SIGN // Aquarius
+                    9 -> OWN_SIGN // Capricorn
+                    1, 2, 5 -> FRIEND // Taurus, Gemini, Virgo
+                    8, 11 -> NEUTRAL // Sagittarius, Pisces
+                    3, 4, 7 -> ENEMY // Cancer, Leo, Scorpio
+                    else -> NEUTRAL
+                }
+                "rahu" -> when (signIndex) {
+                    1, 2 -> EXALTED // Taurus / Gemini
+                    7, 8 -> DEBILITATED // Scorpio / Sagittarius
+                    10 -> OWN_SIGN // Aquarius co-lord
+                    else -> NEUTRAL
+                }
+                "ketu" -> when (signIndex) {
+                    7, 8 -> EXALTED // Scorpio / Sagittarius
+                    1, 2 -> DEBILITATED // Taurus / Gemini
+                    else -> NEUTRAL
+                }
+                else -> NEUTRAL
+            }
+        }
+    }
+}
+
+/**
  * Detailed planet position structure
  */
 data class PlanetPosition(
@@ -137,7 +235,8 @@ data class PlanetPosition(
     val nakshatraPada: Int,
     val speed: Double,
     val abbreviation: String = defaultPlanetAbbreviation(planet),
-    val sanskritName: String = defaultPlanetSanskritName(planet)
+    val sanskritName: String = defaultPlanetSanskritName(planet),
+    val dignity: PlanetDignity = PlanetDignity.calculate(planet, signIndex, degreeInSign)
 ) {
     val formattedDegree: String
         get() {
