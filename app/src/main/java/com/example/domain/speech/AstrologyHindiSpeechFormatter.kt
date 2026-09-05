@@ -1,5 +1,6 @@
 package com.example.domain.speech
 
+import com.example.domain.interpretation.*
 import com.example.domain.models.*
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -247,6 +248,84 @@ object AstrologyHindiSpeechFormatter {
             }
         }
 
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts Advanced Vedic Interpretation into dignified natural Hindi speech.
+     */
+    fun formatAdvancedInterpretationSummary(interpretation: AdvancedVedicInterpretation): String {
+        val sb = StringBuilder()
+        sb.append("ज्योतिर् एआई उन्नत वैदिक फलित विश्लेषण। ")
+        sb.append("जातक का नाम: ${interpretation.profileName}। ")
+        sb.append("${translateToHindiSpeech(interpretation.natalSummary)}। ")
+
+        interpretation.dominantFactor?.let { dominant ->
+            sb.append("मुख्य ग्रह प्रभाव: ${translateToHindiSpeech(dominant.name)}, ${translateToHindiSpeech(dominant.calculatedValue)}। ")
+        }
+
+        if (interpretation.opportunities.isNotEmpty()) {
+            sb.append("अनुकूल अवसर: ")
+            interpretation.opportunities.forEach { opp ->
+                sb.append("${translateToHindiSpeech(opp)}। ")
+            }
+        }
+
+        if (interpretation.cautions.isNotEmpty()) {
+            sb.append("सावधानी के क्षेत्र: ")
+            interpretation.cautions.forEach { caution ->
+                sb.append("${translateToHindiSpeech(caution)}। ")
+            }
+        }
+
+        if (interpretation.traditionalGuidance.isNotEmpty()) {
+            sb.append("पारंपरिक मार्गदर्शन: ")
+            interpretation.traditionalGuidance.forEach { guidance ->
+                sb.append("${translateToHindiSpeech(guidance)}। ")
+            }
+        }
+
+        sb.append("यह पारंपरिक वैदिक ज्योतिष पर आधारित सांकेतिक मार्गदर्शन है।")
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts Divisional Cross-Analysis (D1/D9/D10) into spoken Hindi.
+     */
+    fun formatDivisionalAnalysisSummary(analysis: DivisionalCrossAnalysis): String {
+        val sb = StringBuilder()
+        sb.append("वर्ग कुण्डली विश्लेषण। ")
+        if (analysis.d9Available) {
+            sb.append("नवांश डी ९: ${translateToHindiSpeech(analysis.d9Summary)}। ")
+            if (analysis.vargottamaPlanets.isNotEmpty()) {
+                val planetsHi = analysis.vargottamaPlanets.joinToString(", ") { GRAHA_HINDI_MAP[it] ?: it }
+                sb.append("वर्गोत्तम ग्रह: $planetsHi। ")
+            }
+        }
+        if (analysis.d10Available) {
+            sb.append("दशांश डी १० कर्म विश्लेषण: ${translateToHindiSpeech(analysis.d10Summary)}। ")
+        }
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts Dasha and Transit synergy into spoken Hindi.
+     */
+    fun formatDashaTransitSynergy(interpretation: AdvancedVedicInterpretation): String {
+        val sb = StringBuilder()
+        sb.append("दशा एवं गोचर समन्वय। ")
+        interpretation.dashaContext?.let { dasha ->
+            val mahaHi = GRAHA_HINDI_MAP[dasha.mahadashaLord] ?: dasha.mahadashaLord
+            val antarHi = GRAHA_HINDI_MAP[dasha.antardashaLord] ?: dasha.antardashaLord
+            sb.append("सक्रिय महादशा: $mahaHi, अंतर्दशा: $antarHi। ")
+            sb.append("${translateToHindiSpeech(dasha.summary)}। ")
+        }
+        interpretation.transitContext?.let { transit ->
+            sb.append("गोचर प्रभाव: ${translateToHindiSpeech(transit.summary)}। ")
+            if (transit.sadeSatiPhase != null) {
+                sb.append("शनि की साढ़ेसाती सक्रिय है: ${translateToHindiSpeech(transit.sadeSatiPhase)}। ")
+            }
+        }
         return cleanForSpeech(sb.toString())
     }
 

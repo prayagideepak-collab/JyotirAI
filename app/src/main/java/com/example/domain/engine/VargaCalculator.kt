@@ -39,7 +39,8 @@ object VargaCalculator {
                 sign = "${vargaRashi.sanskritName} (${vargaRashi.englishName})",
                 signIndex = vargaSignIndex,
                 degreeInSign = vargaDegree,
-                house = vargaHouse
+                house = vargaHouse,
+                dignity = PlanetDignity.calculate(basePos.planet, vargaSignIndex, vargaDegree)
             )
         }
 

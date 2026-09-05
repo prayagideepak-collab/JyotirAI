@@ -187,4 +187,38 @@ class PanchangCalculatorTest {
         assertEquals(27, y5.index)
         assertEquals("Vaidhriti", y5.name)
     }
+
+    @Test
+    fun `test convertJulianDayToZonedDateTime precision and stability across leap days and epoch boundaries`() {
+        // Unix Epoch: 1970-01-01T00:00:00Z corresponds to JD 2440587.5
+        val epochZdt = PanchangCalculator.convertJulianDayToZonedDateTime(2440587.5)
+        assertNotNull(epochZdt)
+        assertEquals(1970, epochZdt!!.year)
+        assertEquals(1, epochZdt.monthValue)
+        assertEquals(1, epochZdt.dayOfMonth)
+        assertEquals(0, epochZdt.hour)
+        assertEquals(0, epochZdt.minute)
+        assertEquals(0, epochZdt.second)
+
+        // J2000.0: 2000-01-01T12:00:00Z corresponds to JD 2451545.0
+        val j2000Zdt = PanchangCalculator.convertJulianDayToZonedDateTime(2451545.0)
+        assertNotNull(j2000Zdt)
+        assertEquals(2000, j2000Zdt!!.year)
+        assertEquals(1, j2000Zdt.monthValue)
+        assertEquals(1, j2000Zdt.dayOfMonth)
+        assertEquals(12, j2000Zdt.hour)
+        assertEquals(0, j2000Zdt.minute)
+        assertEquals(0, j2000Zdt.second)
+
+        // Leap day: 2024-02-29 18:00:00 UTC
+        // Days from 1970-01-01 to 2024-02-29 is 19782 days. At 18:00 (0.75 day), JD = 2440587.5 + 19782.75 = 2460370.25
+        val leapZdt = PanchangCalculator.convertJulianDayToZonedDateTime(2460370.25)
+        assertNotNull(leapZdt)
+        assertEquals(2024, leapZdt!!.year)
+        assertEquals(2, leapZdt.monthValue)
+        assertEquals(29, leapZdt.dayOfMonth)
+        assertEquals(18, leapZdt.hour)
+        assertEquals(0, leapZdt.minute)
+        assertEquals(0, leapZdt.second)
+    }
 }

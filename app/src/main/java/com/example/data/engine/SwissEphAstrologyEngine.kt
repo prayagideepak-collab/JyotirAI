@@ -35,41 +35,41 @@ class SwissEphAstrologyEngine : AstrologyEngine {
     private val dashaCache = ConcurrentHashMap<Pair<BirthData, String>, DashaTimeline>()
     private val transitCache = ConcurrentHashMap<String, TransitSnapshot>()
 
-    // ThreadLocal SwissEph instance for thread-safe computations without lock contention
-    private val swissEphThreadLocal = ThreadLocal.withInitial {
-        val swe = SwissEph()
-        swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
-        swe
+    // Dedicated calculation lock and SwissEph instance for deterministic thread-safe computations
+    private val calculationLock = Any()
+    private val swe = SwissEph().apply {
+        swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
     }
 
     override suspend fun calculateProfile(birthData: BirthData): Result<AstrologyProfile> {
-        return try {
-            // Check cache
-            profileCache[birthData]?.let { return Result.success(it) }
+        profileCache[birthData]?.let { return Result.success(it) }
 
-            // Validate birth data
-            validateBirthData(birthData)
+        return synchronized(calculationLock) {
+            try {
+                profileCache[birthData]?.let { return@synchronized Result.success(it) }
 
-            val zonedDateTime = ZonedDateTime.of(birthData.date, birthData.time, birthData.timeZone)
-            val utcDateTime = zonedDateTime.withZoneSameInstant(ZoneOffset.UTC)
+                // Validate birth data
+                validateBirthData(birthData)
 
-            val hourDecimalUt = utcDateTime.hour +
-                    (utcDateTime.minute / 60.0) +
-                    (utcDateTime.second / 3600.0) +
-                    (utcDateTime.nano / 3_600_000_000_000.0)
+                val zonedDateTime = ZonedDateTime.of(birthData.date, birthData.time, birthData.timeZone)
+                val utcDateTime = zonedDateTime.withZoneSameInstant(ZoneOffset.UTC)
 
-            val sweDate = SweDate(
-                utcDateTime.year,
-                utcDateTime.monthValue,
-                utcDateTime.dayOfMonth,
-                hourDecimalUt
-            )
-            val tjdUt = sweDate.julDay
+                val hourDecimalUt = utcDateTime.hour +
+                        (utcDateTime.minute / 60.0) +
+                        (utcDateTime.second / 3600.0) +
+                        (utcDateTime.nano / 3_600_000_000_000.0)
 
-            val swe = swissEphThreadLocal.get()
-            swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
+                val sweDate = SweDate(
+                    utcDateTime.year,
+                    utcDateTime.monthValue,
+                    utcDateTime.dayOfMonth,
+                    hourDecimalUt
+                )
+                val tjdUt = sweDate.julDay
 
-            val flags = SweConst.SEFLG_MOSEPH or SweConst.SEFLG_SIDEREAL or SweConst.SEFLG_SPEED
+                swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
+
+                val flags = SweConst.SEFLG_MOSEPH or SweConst.SEFLG_SIDEREAL or SweConst.SEFLG_SPEED
 
             // 1. Calculate Ayanamsa
             val ayanamsa = swe.swe_get_ayanamsa_ut(tjdUt)
@@ -240,6 +240,7 @@ class SwissEphAstrologyEngine : AstrologyEngine {
             Result.failure(AppError.CalculationError(e.message ?: "Calculation error occurred"))
         }
     }
+}
 
     override suspend fun calculateChart(birthData: BirthData, chartType: String): Result<Chart> {
         return try {
@@ -311,13 +312,17 @@ class SwissEphAstrologyEngine : AstrologyEngine {
         date: ZonedDateTime,
         location: BirthLocation
     ): Result<com.example.domain.models.PanchangSnapshot> {
-        return try {
-            val snapshot = PanchangCalculator.calculatePanchang(date, location, swissEphThreadLocal.get())
-            Result.success(snapshot)
-        } catch (e: Exception) {
-            Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate Panchang"))
+        return synchronized(calculationLock) {
+            try {
+                swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
+                val snapshot = PanchangCalculator.calculatePanchang(date, location, swe)
+                Result.success(snapshot)
+            } catch (e: Exception) {
+                Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate Panchang"))
+            }
         }
     }
+
     override suspend fun calculateTransitSnapshot(
         transitDateTime: ZonedDateTime,
         location: BirthLocation,
@@ -330,23 +335,25 @@ class SwissEphAstrologyEngine : AstrologyEngine {
             val cacheKey = "${transitDateTime.toInstant().toEpochMilli()}_${location.latitude}_${location.longitude}_${location.altitudeMeters?.toString() ?: "none"}_$natalRefKey"
             transitCache[cacheKey]?.let { return Result.success(it) }
 
-            val utcDateTime = transitDateTime.withZoneSameInstant(ZoneOffset.UTC)
+            synchronized(calculationLock) {
+                transitCache[cacheKey]?.let { return@synchronized Result.success(it) }
 
-            val hourDecimalUt = utcDateTime.hour +
-                    (utcDateTime.minute / 60.0) +
-                    (utcDateTime.second / 3600.0) +
-                    (utcDateTime.nano / 3_600_000_000_000.0)
+                val utcDateTime = transitDateTime.withZoneSameInstant(ZoneOffset.UTC)
 
-            val sweDate = SweDate(
-                utcDateTime.year,
-                utcDateTime.monthValue,
-                utcDateTime.dayOfMonth,
-                hourDecimalUt
-            )
-            val tjdUt = sweDate.julDay
+                val hourDecimalUt = utcDateTime.hour +
+                        (utcDateTime.minute / 60.0) +
+                        (utcDateTime.second / 3600.0) +
+                        (utcDateTime.nano / 3_600_000_000_000.0)
 
-            val swe = swissEphThreadLocal.get()
-            swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
+                val sweDate = SweDate(
+                    utcDateTime.year,
+                    utcDateTime.monthValue,
+                    utcDateTime.dayOfMonth,
+                    hourDecimalUt
+                )
+                val tjdUt = sweDate.julDay
+
+                swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
 
             val flags = SweConst.SEFLG_MOSEPH or SweConst.SEFLG_SIDEREAL or SweConst.SEFLG_SPEED
 
@@ -497,12 +504,13 @@ class SwissEphAstrologyEngine : AstrologyEngine {
 
             transitCache[cacheKey] = snapshot
             Result.success(snapshot)
-        } catch (e: AppError) {
-            Result.failure(e)
-        } catch (e: Exception) {
-            Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate planetary transits"))
         }
+    } catch (e: AppError) {
+        Result.failure(e)
+    } catch (e: Exception) {
+        Result.failure(AppError.CalculationError(e.message ?: "Failed to calculate planetary transits"))
     }
+}
 
     private fun validateTransitInput(dateTime: ZonedDateTime, location: BirthLocation) {
         if (location.latitude !in -90.0..90.0) {

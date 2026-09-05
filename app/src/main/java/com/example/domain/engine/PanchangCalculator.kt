@@ -370,16 +370,12 @@ object PanchangCalculator {
         return null
     }
     
-    private fun convertJulianDayToZonedDateTime(jd: Double): ZonedDateTime? {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun convertJulianDayToZonedDateTime(jd: Double): ZonedDateTime? {
         return try {
-            val sweDate = SweDate(jd)
-            val year = sweDate.year
-            val month = sweDate.month
-            val day = sweDate.day
-            val hour = sweDate.hour.toInt()
-            val min = ((sweDate.hour - hour) * 60.0).toInt()
-            val sec = ((((sweDate.hour - hour) * 60.0) - min) * 60.0).toInt()
-            ZonedDateTime.of(year, month, day, hour, min, sec, 0, ZoneOffset.UTC)
+            // Astronomical Julian Day 2440587.5 corresponds exactly to Unix epoch 1970-01-01T00:00:00 UTC.
+            val millisSinceEpoch = ((jd - 2440587.5) * 86_400_000.0).toLong()
+            java.time.Instant.ofEpochMilli(millisSinceEpoch).atZone(ZoneOffset.UTC)
         } catch (e: Exception) {
             null
         }

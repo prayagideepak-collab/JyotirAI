@@ -9,6 +9,8 @@ import com.example.ui.components.*
 import com.example.ui.screens.ChartScreen
 import com.example.ui.theme.JyotishTheme
 import com.example.ui.viewmodel.AstrologyViewModel
+import com.example.domain.interpretation.*
+import com.example.ui.viewmodel.AdvancedInterpretationUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

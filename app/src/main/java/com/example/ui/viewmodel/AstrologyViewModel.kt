@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.domain.alarm.MuhurtaAlarmRepository
 import com.example.domain.alarm.MuhurtaAlarmScheduler
 import com.example.domain.engine.AstrologyEngine
+import com.example.domain.interpretation.*
 import com.example.domain.location.LocationRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
@@ -28,6 +29,13 @@ sealed interface AstrologyUiState {
     data object Calculating : AstrologyUiState
     data class Success(val profile: AstrologyProfile) : AstrologyUiState
     data class Error(val message: String) : AstrologyUiState
+}
+
+sealed interface AdvancedInterpretationUiState {
+    data object Empty : AdvancedInterpretationUiState
+    data object Calculating : AdvancedInterpretationUiState
+    data class Success(val interpretation: AdvancedVedicInterpretation) : AdvancedInterpretationUiState
+    data class Error(val message: String) : AdvancedInterpretationUiState
 }
 
 sealed interface DashaUiState {
@@ -139,6 +147,10 @@ class AstrologyViewModel(
     val panchangUiState: StateFlow<PanchangUiState> = _panchangUiState.asStateFlow()
     private val _panchangDateTime = MutableStateFlow<ZonedDateTime?>(null)
     val panchangDateTime: StateFlow<ZonedDateTime?> = _panchangDateTime.asStateFlow()
+
+    // Advanced Vedic Intelligence & Interpretation State (Phase 12)
+    private val _advancedInterpretationState = MutableStateFlow<AdvancedInterpretationUiState>(AdvancedInterpretationUiState.Empty)
+    val advancedInterpretationState: StateFlow<AdvancedInterpretationUiState> = _advancedInterpretationState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -412,6 +424,7 @@ class AstrologyViewModel(
                     loadChartForVarga(birthData, _selectedVargaType.value)
                     loadDashaTimeline(birthData)
                     loadTransits(location = birthData.location, natalProfile = profile)
+                    refreshAdvancedInterpretation()
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
@@ -502,7 +515,37 @@ class AstrologyViewModel(
         _dashaTimeline.value = null
         _dashaUiState.value = DashaUiState.Empty
         _expandedMahadashaPlanet.value = null
+        _advancedInterpretationState.value = AdvancedInterpretationUiState.Empty
         loadTransits(natalProfile = null)
+    }
+
+    /**
+     * Recomputes the unified deterministic Advanced Vedic Interpretation.
+     */
+    fun refreshAdvancedInterpretation() {
+        val profile = (_uiState.value as? AstrologyUiState.Success)?.profile ?: run {
+            _advancedInterpretationState.value = AdvancedInterpretationUiState.Empty
+            return
+        }
+        _advancedInterpretationState.value = AdvancedInterpretationUiState.Calculating
+        viewModelScope.launch {
+            try {
+                val dasha = _dashaTimeline.value
+                val transit = (_transitUiState.value as? TransitUiState.Success)?.snapshot
+                val panchang = (_panchangUiState.value as? PanchangUiState.Success)?.snapshot
+                val interpretation = VedicInterpretationEngine.interpret(
+                    profile = profile,
+                    dashaTimeline = dasha,
+                    transitSnapshot = transit,
+                    panchangSnapshot = panchang
+                )
+                _advancedInterpretationState.value = AdvancedInterpretationUiState.Success(interpretation)
+            } catch (e: Exception) {
+                _advancedInterpretationState.value = AdvancedInterpretationUiState.Error(
+                    e.message ?: "Failed to generate Vedic interpretation."
+                )
+            }
+        }
     }
 
     fun loadPanchang(
