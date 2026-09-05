@@ -16,3 +16,7 @@ val BorderSubtle = Color(0x1AFFFFFF) // White/10
 val IconContainer = Color(0xFF2A2A2A)
 val AccentCrimson = Color(0xFFEF4444) // Red 500
 val AccentEmerald = Color(0xFF10B981) // Emerald 500
+
+val DeepNavy = Color(0xFF0A0E1A)
+val CosmicBackground = Color(0xFF0A0E1A)
+val SurfaceNavy = Color(0xFF131B2E)

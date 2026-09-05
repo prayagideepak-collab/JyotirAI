@@ -30,7 +30,12 @@ fun JyotishNavGraph(
         startDestination = Screen.Home.route,
         modifier = Modifier.padding(innerPadding)
     ) {
-        composable(Screen.Home.route) { HomeScreen(viewModel = astrologyViewModel) }
+        composable(Screen.Home.route) {
+            HomeScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToRashifal = { navController.navigate(Screen.Predictions.route) }
+            )
+        }
         composable(Screen.Chart.route) { ChartScreen(viewModel = astrologyViewModel) }
         composable(Screen.Transit.route) {
             TransitScreen(
@@ -39,7 +44,12 @@ fun JyotishNavGraph(
             )
         }
         composable(Screen.Assistant.route) { AssistantScreen() }
-        composable(Screen.Predictions.route) { PredictionsScreen() }
+        composable(Screen.Predictions.route) {
+            DailyRashifalScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+            )
+        }
         composable(Screen.Dasha.route) {
             DashaScreen(
                 viewModel = astrologyViewModel,

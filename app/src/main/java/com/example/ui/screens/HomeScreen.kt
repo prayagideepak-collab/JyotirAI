@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,14 +32,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.models.UserProfile
 import com.example.ui.components.AstrologyProfileView
 import com.example.ui.components.BirthDataEntryDialog
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Today
+import com.example.domain.models.DailyRashifal
 import com.example.ui.theme.*
+import com.example.ui.viewmodel.DailyRashifalUiState
 import com.example.ui.viewmodel.AstrologyUiState
 import com.example.ui.viewmodel.AstrologyViewModel
 import kotlin.coroutines.suspendCoroutine
 
 @Composable
 fun HomeScreen(
-    viewModel: AstrologyViewModel
+    viewModel: AstrologyViewModel,
+    onNavigateToRashifal: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentBirthData by viewModel.currentBirthData.collectAsStateWithLifecycle()
@@ -46,6 +53,8 @@ fun HomeScreen(
     val activeProfileId by viewModel.activeProfileId.collectAsStateWithLifecycle()
     val defaultProfileId by viewModel.defaultProfileId.collectAsStateWithLifecycle()
     val activeUserProfile by viewModel.activeUserProfile.collectAsStateWithLifecycle()
+    val defaultUserProfile by viewModel.defaultUserProfile.collectAsStateWithLifecycle()
+    val dailyRashifalState by viewModel.dailyRashifalState.collectAsStateWithLifecycle()
 
     var showDialog by remember { mutableStateOf(false) }
     var editingProfile by remember { mutableStateOf<UserProfile?>(null) }
@@ -245,6 +254,14 @@ fun HomeScreen(
                     onClearClick = {
                         profileToDelete = activeUserProfile
                     }
+                )
+
+                // Personalised Daily Rashifal Card (strictly for Default Profile)
+                Spacer(modifier = Modifier.height(16.dp))
+                HomeDailyRashifalSection(
+                    dailyRashifalState = dailyRashifalState,
+                    defaultProfile = defaultUserProfile,
+                    onOpenRashifal = onNavigateToRashifal
                 )
             }
 
@@ -605,6 +622,181 @@ fun FeatureCard(title: String, subtitle: String, modifier: Modifier = Modifier) 
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+fun HomeDailyRashifalSection(
+    dailyRashifalState: DailyRashifalUiState,
+    defaultProfile: UserProfile?,
+    onOpenRashifal: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .border(1.dp, AccentAmber.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+            .testTag("home_daily_rashifal_card"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Daily Rashifal",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = AccentAmber
+                    )
+                }
+
+                if (defaultProfile != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AccentAmber.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "DEFAULT: ${defaultProfile.name}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = AccentAmber
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when (dailyRashifalState) {
+                is DailyRashifalUiState.Loading -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = AccentAmber,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Evaluating Gochar, Tara Bala & Dasha for default profile...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                is DailyRashifalUiState.NoDefaultProfile -> {
+                    Text(
+                        text = "No default profile designated. Set any saved profile as default to receive automated personal daily predictions.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                is DailyRashifalUiState.Error -> {
+                    Text(
+                        text = dailyRashifalState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                is DailyRashifalUiState.Success -> {
+                    val r = dailyRashifalState.rashifal
+                    Text(
+                        text = r.dailyTheme,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = r.primaryFocus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceElevated)
+                                .padding(8.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Tara Bala",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = r.taraBala.taraName,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentAmber
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceElevated)
+                                .padding(8.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Alignment Score",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${r.energyScore} / 100",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF81C784)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onOpenRashifal,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("view_full_rashifal_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentAmber, contentColor = DeepNavy)
+                    ) {
+                        Text("View Full Personalised Rashifal", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null)
+                    }
+                }
+            }
         }
     }
 }

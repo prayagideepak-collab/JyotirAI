@@ -33,9 +33,6 @@ fun PlaceholderScreen(title: String, description: String) {
 }
 
 @Composable
-fun PredictionsScreen() = PlaceholderScreen("Insights & Predictions", "Phase 7 feature. Deterministic interpretation models based on classical texts.")
-
-@Composable
 fun MuhurtaScreen() = PlaceholderScreen("Muhurta Explorer", "Phase 9 feature. Favorable timing calculation for life events.")
 
 @Composable

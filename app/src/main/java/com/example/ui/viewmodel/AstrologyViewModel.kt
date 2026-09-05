@@ -6,6 +6,8 @@ import com.example.domain.engine.AstrologyEngine
 import com.example.domain.location.LocationRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
+import com.example.domain.prediction.DailyPredictionEngine
+import com.example.domain.prediction.DailyPredictionEngineImpl
 import com.example.domain.profile.ProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,12 +45,21 @@ sealed interface TransitUiState {
     data class Error(val message: String) : TransitUiState
 }
 
+sealed interface DailyRashifalUiState {
+    data object Loading : DailyRashifalUiState
+    data class Success(val rashifal: DailyRashifal, val defaultProfile: UserProfile) : DailyRashifalUiState
+    data object NoDefaultProfile : DailyRashifalUiState
+    data class Error(val message: String) : DailyRashifalUiState
+}
+
 class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine,
     private val locationResolver: LocationResolver,
     private val locationRepository: LocationRepository,
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
+
+    private val dailyPredictionEngine: DailyPredictionEngine = DailyPredictionEngineImpl(profileRepository, astrologyEngine)
 
     // Persistent User Profile State (Max 3 Slots)
     private val _savedProfiles = MutableStateFlow<List<UserProfile>>(emptyList())
@@ -65,6 +76,13 @@ class AstrologyViewModel(
 
     private val _defaultUserProfile = MutableStateFlow<UserProfile?>(null)
     val defaultUserProfile: StateFlow<UserProfile?> = _defaultUserProfile.asStateFlow()
+
+    // Daily Rashifal State (Personalised Horoscope strictly for DEFAULT PROFILE)
+    private val _dailyRashifalState = MutableStateFlow<DailyRashifalUiState>(DailyRashifalUiState.Loading)
+    val dailyRashifalState: StateFlow<DailyRashifalUiState> = _dailyRashifalState.asStateFlow()
+
+    private val _rashifalTargetDate = MutableStateFlow<LocalDate>(LocalDate.now())
+    val rashifalTargetDate: StateFlow<LocalDate> = _rashifalTargetDate.asStateFlow()
 
     // Location State
     private val _savedLocation = MutableStateFlow<BirthLocation?>(null)
@@ -157,6 +175,7 @@ class AstrologyViewModel(
             loadPanchang()
             loadTransits()
         }
+        loadDailyRashifalInternal(_rashifalTargetDate.value)
     }
 
     fun resolveLocation(query: String, onResult: (Result<List<BirthLocation>>) -> Unit) {
@@ -210,6 +229,7 @@ class AstrologyViewModel(
                     _savedLocation.value = birthData.location
 
                     calculateBirthChartInternal(birthData)
+                    loadDailyRashifalInternal(_rashifalTargetDate.value)
                     onResult?.invoke(Result.success(userProfile))
                 },
                 onFailure = { error ->
@@ -255,6 +275,7 @@ class AstrologyViewModel(
             if (setResult.isSuccess) {
                 _defaultProfileId.value = profileId
                 _defaultUserProfile.value = profileRepository.getProfileById(profileId)
+                loadDailyRashifalInternal(_rashifalTargetDate.value)
             }
         }
     }
@@ -282,6 +303,7 @@ class AstrologyViewModel(
             } else {
                 clearProfileState()
             }
+            loadDailyRashifalInternal(_rashifalTargetDate.value)
         }
     }
 
@@ -298,6 +320,55 @@ class AstrologyViewModel(
     fun getDefaultBirthData(): BirthData? = _defaultUserProfile.value?.birthData
 
     fun getDefaultBirthDataForDailyPrediction(): BirthData? = _defaultUserProfile.value?.birthData
+
+    /**
+     * Loads the personalized Daily Rashifal for the given date (defaults to current target date).
+     * Strictly targets the canonical DEFAULT PROFILE.
+     */
+    fun loadDailyRashifal(date: LocalDate? = null) {
+        val target = date ?: _rashifalTargetDate.value
+        _rashifalTargetDate.value = target
+        viewModelScope.launch {
+            loadDailyRashifalInternal(target)
+        }
+    }
+
+    private suspend fun loadDailyRashifalInternal(date: LocalDate) {
+        _dailyRashifalState.value = DailyRashifalUiState.Loading
+        val defaultProfile = profileRepository.getDefaultProfileForDailyPrediction()
+        if (defaultProfile == null) {
+            _dailyRashifalState.value = DailyRashifalUiState.NoDefaultProfile
+            return
+        }
+
+        val result = dailyPredictionEngine.generatePersonalisedRashifal(date)
+        result.fold(
+            onSuccess = { rashifal ->
+                _dailyRashifalState.value = DailyRashifalUiState.Success(rashifal, defaultProfile)
+            },
+            onFailure = { err ->
+                _dailyRashifalState.value = DailyRashifalUiState.Error(
+                    err.message ?: "Failed to generate personalized daily prediction"
+                )
+            }
+        )
+    }
+
+    fun shiftRashifalDays(days: Long) {
+        val newDate = _rashifalTargetDate.value.plusDays(days)
+        _rashifalTargetDate.value = newDate
+        viewModelScope.launch {
+            loadDailyRashifalInternal(newDate)
+        }
+    }
+
+    fun resetRashifalToToday() {
+        val today = LocalDate.now()
+        _rashifalTargetDate.value = today
+        viewModelScope.launch {
+            loadDailyRashifalInternal(today)
+        }
+    }
 
     /**
      * Calculates natal chart from given birth data and persists as active profile.

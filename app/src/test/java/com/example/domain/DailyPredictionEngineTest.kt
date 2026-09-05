@@ -117,6 +117,66 @@ class DailyPredictionEngineTest {
     }
 
     @Test
+    fun testPersonalisedDailyRashifalGenerationAndDeterminism() = runTest {
+        val p1 = createSampleProfile("p1", "Default User", "New Delhi", 28.6139, 77.2090)
+        val p2 = createSampleProfile("p2", "Active User", "Kolkata", 22.5726, 88.3639)
+
+        profileRepository.saveProfile(p1)
+        profileRepository.saveProfile(p2)
+        profileRepository.setDefaultProfileId("p1")
+        profileRepository.setActiveProfileId("p2")
+
+        val targetDate = LocalDate.of(2026, 9, 5)
+
+        val result1 = dailyPredictionEngine.generatePersonalisedRashifal(targetDate)
+        assertTrue(result1.isSuccess)
+
+        val rashifal1 = result1.getOrThrow()
+        assertEquals("p1", rashifal1.defaultProfileId)
+        assertEquals("Default User", rashifal1.profileName)
+        assertEquals("New Delhi", rashifal1.birthLocationName)
+        assertTrue(rashifal1.energyScore in 0..100)
+        assertTrue(rashifal1.keyInfluences.isNotEmpty())
+        assertTrue(rashifal1.priorities.isNotEmpty())
+        assertTrue(rashifal1.cautions.isNotEmpty())
+        assertTrue(rashifal1.traditionalRemedies.isNotEmpty())
+
+        // Determinism test: Generating again for the same date must produce the exact same outcome
+        val result2 = dailyPredictionEngine.generatePersonalisedRashifal(targetDate)
+        assertTrue(result2.isSuccess)
+        val rashifal2 = result2.getOrThrow()
+
+        assertEquals(rashifal1.energyScore, rashifal2.energyScore)
+        assertEquals(rashifal1.dailyTheme, rashifal2.dailyTheme)
+        assertEquals(rashifal1.taraBala.taraName, rashifal2.taraBala.taraName)
+        assertEquals(rashifal1.lagna, rashifal2.lagna)
+        assertEquals(rashifal1.moonSign, rashifal2.moonSign)
+        assertEquals(rashifal1.currentMahadashaLord, rashifal2.currentMahadashaLord)
+    }
+
+    @Test
+    fun testChangingActiveProfileDoesNotChangeRashifalSubject() = runTest {
+        val p1 = createSampleProfile("p1", "Alice (Default)", "Chennai", 13.0827, 80.2707)
+        val p2 = createSampleProfile("p2", "Bob (Active)", "Pune", 18.5204, 73.8567)
+
+        profileRepository.saveProfile(p1)
+        profileRepository.saveProfile(p2)
+        profileRepository.setDefaultProfileId("p1")
+        profileRepository.setActiveProfileId("p1")
+
+        val rBefore = dailyPredictionEngine.generatePersonalisedRashifal().getOrThrow()
+        assertEquals("p1", rBefore.defaultProfileId)
+        assertEquals("Alice (Default)", rBefore.profileName)
+
+        // Switch active profile to Bob
+        profileRepository.setActiveProfileId("p2")
+
+        val rAfter = dailyPredictionEngine.generatePersonalisedRashifal().getOrThrow()
+        assertEquals("p1", rAfter.defaultProfileId)
+        assertEquals("Alice (Default)", rAfter.profileName)
+    }
+
+    @Test
     fun testFailsGracefullyWhenNoProfilesConfigured() = runTest {
         val result = dailyPredictionEngine.getDailyPredictionContext()
         assertTrue(result.isFailure)
