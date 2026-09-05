@@ -334,12 +334,27 @@ class VimshottariDashaTest {
 
         // Period 1: [start, transition)
         // Period 2: [transition, end)
-        val inPeriod1 = VimshottariDashaCalculator.isDateTimeInRange(transition, start, transition, isLast = false)
-        val inPeriod2 = VimshottariDashaCalculator.isDateTimeInRange(transition, transition, end, isLast = false)
+        val beforeBoundary = transition.minusSeconds(1)
+        val exactlyAtBoundary = transition
+        val afterBoundary = transition.plusSeconds(1)
 
-        // Half-open interval convention: transition belongs to Period 2, NOT Period 1
-        assertFalse("Transition timestamp should not belong to earlier half-open interval", inPeriod1)
-        assertTrue("Transition timestamp must belong to the starting interval", inPeriod2)
+        // 1. Immediately before boundary
+        assertTrue("Immediately before boundary must belong to Period 1",
+            VimshottariDashaCalculator.isDateTimeInRange(beforeBoundary, start, transition, isLast = false))
+        assertFalse("Immediately before boundary must not belong to Period 2",
+            VimshottariDashaCalculator.isDateTimeInRange(beforeBoundary, transition, end, isLast = false))
+
+        // 2. Exactly at boundary (half-open interval convention: transition belongs to Period 2, NOT Period 1)
+        assertFalse("Transition timestamp should not belong to earlier half-open interval",
+            VimshottariDashaCalculator.isDateTimeInRange(exactlyAtBoundary, start, transition, isLast = false))
+        assertTrue("Transition timestamp must belong to the starting interval",
+            VimshottariDashaCalculator.isDateTimeInRange(exactlyAtBoundary, transition, end, isLast = false))
+
+        // 3. Immediately after boundary
+        assertFalse("Immediately after boundary must not belong to Period 1",
+            VimshottariDashaCalculator.isDateTimeInRange(afterBoundary, start, transition, isLast = false))
+        assertTrue("Immediately after boundary must belong to Period 2",
+            VimshottariDashaCalculator.isDateTimeInRange(afterBoundary, transition, end, isLast = false))
     }
 
     // 19. Invalid birth input

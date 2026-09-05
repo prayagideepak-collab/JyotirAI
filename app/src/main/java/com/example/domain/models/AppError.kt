@@ -5,4 +5,5 @@ sealed class AppError : Exception() {
     class CalculationError(override val message: String) : AppError()
     class AIInterpretationError(override val message: String) : AppError()
     class PersistenceError(override val message: String) : AppError()
+    class FeatureUnavailable(override val message: String) : AppError()
 }

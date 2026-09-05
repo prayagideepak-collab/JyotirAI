@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.domain.models.VargaType
 import com.example.domain.pdf.KundliPdfExporter
 import com.example.domain.speech.AstrologyHindiSpeechFormatter
 import com.example.domain.speech.JyotirAiSpeechManager
@@ -86,16 +87,25 @@ fun ChartScreen(
             when (val state = uiState) {
                 is AstrologyUiState.Success -> {
                     val profile = state.profile
-                    val activeChart = currentChart ?: profile.rashiChart
+                    val isD1 = selectedVarga == VargaType.D1
+                    val isCalculatedVarga = selectedVarga.isCalculated
+                    val activeChart = if (isD1) {
+                        currentChart ?: profile.rashiChart
+                    } else if (isCalculatedVarga && currentChart?.type == selectedVarga.code) {
+                        currentChart
+                    } else {
+                        null
+                    }
 
                     // 1. Kundli Action Bar: PDF Export & Hindi Audio
                     KundliActionBar(
                         onExportPdf = {
                             try {
+                                val chartToExport = activeChart ?: profile.rashiChart
                                 val pdfFile = KundliPdfExporter.generateKundliPdf(
                                     context = context,
                                     profile = profile,
-                                    activeChart = activeChart,
+                                    activeChart = chartToExport,
                                     dashaTimeline = dashaTimeline
                                 )
                                 val shareIntent = KundliPdfExporter.createSharePdfIntent(context, pdfFile)
@@ -106,7 +116,10 @@ fun ChartScreen(
                             }
                         },
                         speechManager = speechManager,
-                        hindiTextProvider = { AstrologyHindiSpeechFormatter.formatKundliSummary(profile, activeChart) }
+                        hindiTextProvider = {
+                            val chartForSpeech = activeChart ?: profile.rashiChart
+                            AstrologyHindiSpeechFormatter.formatKundliSummary(profile, chartForSpeech)
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -118,27 +131,75 @@ fun ChartScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
 
-                    // 3. North Indian Kundli Visual Sacred Geometry
-                    NorthIndianKundliView(
-                        chart = activeChart,
-                        onPlanetClick = { viewModel.selectPlanetDetail(it) },
-                        modifier = Modifier.padding(bottom = 20.dp)
-                    )
-
-                    // 4. Detailed Information Panel with Placements & Significations
-                    ChartInfoPanel(
-                        chart = activeChart,
-                        onPlanetClick = { viewModel.selectPlanetDetail(it) },
-                        modifier = Modifier.padding(bottom = 32.dp)
-                    )
-
-                    // 5. Interactive Modal Planet Detail Dialog
-                    selectedPlanetDetail?.let { planet ->
-                        PlanetDetailDialog(
-                            planet = planet,
-                            chartTitle = activeChart.title,
-                            onDismiss = { viewModel.selectPlanetDetail(null) }
+                    if (!isCalculatedVarga) {
+                        // Truthful unavailable state - NO fabricated fallback to D1
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                                .padding(24.dp)
+                                .testTag("varga_unavailable_state"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${selectedVarga.code} ${selectedVarga.sanskritName} (${selectedVarga.englishName})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "This divisional chart is currently not supported for calculation in this release. JyotirAI strictly adheres to astronomical accuracy and never fabricates uncalculated planetary placements.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else if (activeChart == null) {
+                        // Loading state while divisional chart calculates
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = AccentGold)
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "Calculating ${selectedVarga.code} ${selectedVarga.sanskritName}...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        // 3. North Indian Kundli Visual Sacred Geometry
+                        NorthIndianKundliView(
+                            chart = activeChart,
+                            onPlanetClick = { viewModel.selectPlanetDetail(it) },
+                            modifier = Modifier.padding(bottom = 20.dp)
                         )
+
+                        // 4. Detailed Information Panel with Placements & Significations
+                        ChartInfoPanel(
+                            chart = activeChart,
+                            onPlanetClick = { viewModel.selectPlanetDetail(it) },
+                            modifier = Modifier.padding(bottom = 32.dp)
+                        )
+
+                        // 5. Interactive Modal Planet Detail Dialog
+                        selectedPlanetDetail?.let { planet ->
+                            PlanetDetailDialog(
+                                planet = planet,
+                                chartTitle = activeChart.title,
+                                onDismiss = { viewModel.selectPlanetDetail(null) }
+                            )
+                        }
                     }
                 }
                 is AstrologyUiState.Calculating -> {

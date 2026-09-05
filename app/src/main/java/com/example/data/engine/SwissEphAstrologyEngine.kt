@@ -77,7 +77,7 @@ class SwissEphAstrologyEngine : AstrologyEngine {
             // 2. Calculate Lagna (Ascendant) & Houses
             val cusps = DoubleArray(13)
             val ascmc = DoubleArray(10)
-            val houseResult = swe.swe_houses(
+            var houseResult = swe.swe_houses(
                 tjdUt,
                 flags,
                 birthData.location.latitude,
@@ -86,6 +86,19 @@ class SwissEphAstrologyEngine : AstrologyEngine {
                 cusps,
                 ascmc
             )
+            if (houseResult != SweConst.OK) {
+                // At extreme latitudes (polar regions beyond ±66.5°), Placidus fails to converge.
+                // Fall back to Equal houses ('E') to robustly calculate the Ascendant.
+                houseResult = swe.swe_houses(
+                    tjdUt,
+                    flags,
+                    birthData.location.latitude,
+                    birthData.location.longitude,
+                    'E'.code,
+                    cusps,
+                    ascmc
+                )
+            }
             if (houseResult != SweConst.OK) {
                 return Result.failure(AppError.CalculationError("Failed to calculate Ascendant / Houses"))
             }
@@ -229,23 +242,36 @@ class SwissEphAstrologyEngine : AstrologyEngine {
     }
 
     override suspend fun calculateChart(birthData: BirthData, chartType: String): Result<Chart> {
-        val vargaType = VargaType.fromCode(chartType)
-        val cacheKey = Pair(birthData, vargaType.code)
-        chartCache[cacheKey]?.let { return Result.success(it) }
+        return try {
+            val vargaType = VargaType.fromCode(chartType)
+            if (!vargaType.isCalculated) {
+                return Result.failure(
+                    AppError.FeatureUnavailable(
+                        "Divisional chart ${vargaType.code} (${vargaType.sanskritName}) is not supported for calculation in this release."
+                    )
+                )
+            }
+            val cacheKey = Pair(birthData, vargaType.code)
+            chartCache[cacheKey]?.let { return Result.success(it) }
 
-        val profileResult = calculateProfile(birthData)
-        if (profileResult.isFailure) {
-            return Result.failure(profileResult.exceptionOrNull() ?: AppError.CalculationError("Profile calculation failed"))
-        }
+            val profileResult = calculateProfile(birthData)
+            if (profileResult.isFailure) {
+                return Result.failure(profileResult.exceptionOrNull() ?: AppError.CalculationError("Profile calculation failed"))
+            }
 
-        val profile = profileResult.getOrThrow()
-        val chart = if (vargaType == VargaType.D1) {
-            profile.rashiChart
-        } else {
-            VargaCalculator.calculateVargaChart(profile, vargaType)
+            val profile = profileResult.getOrThrow()
+            val chart = if (vargaType == VargaType.D1) {
+                profile.rashiChart
+            } else {
+                VargaCalculator.calculateVargaChart(profile, vargaType)
+            }
+            chartCache[cacheKey] = chart
+            Result.success(chart)
+        } catch (e: AppError) {
+            Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(AppError.CalculationError(e.message ?: "Calculation error occurred"))
         }
-        chartCache[cacheKey] = chart
-        return Result.success(chart)
     }
 
     override suspend fun calculateDashaTimeline(
@@ -330,7 +356,7 @@ class SwissEphAstrologyEngine : AstrologyEngine {
             // 2. Calculate Transit Ascendant (Lagna) at the given location
             val cusps = DoubleArray(13)
             val ascmc = DoubleArray(10)
-            val houseResult = swe.swe_houses(
+            var houseResult = swe.swe_houses(
                 tjdUt,
                 flags,
                 location.latitude,
@@ -339,6 +365,17 @@ class SwissEphAstrologyEngine : AstrologyEngine {
                 cusps,
                 ascmc
             )
+            if (houseResult != SweConst.OK) {
+                houseResult = swe.swe_houses(
+                    tjdUt,
+                    flags,
+                    location.latitude,
+                    location.longitude,
+                    'E'.code,
+                    cusps,
+                    ascmc
+                )
+            }
             val transitLagnaLongitude = if (houseResult == SweConst.OK) normalizeDegree(ascmc[0]) else null
             val transitLagnaRashi = transitLagnaLongitude?.let { Rashi.fromLongitude(it) }
             val transitLagnaDegreeInSign = transitLagnaLongitude?.let { it % 30.0 }

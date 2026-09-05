@@ -14,7 +14,14 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
+
+# Swiss Ephemeris astronomical calculation engine protection
+-keep class de.thmac.swisseph.** { *; }
+-dontwarn de.thmac.swisseph.**
+
+# Domain models serialization & reflection protection
+-keep class com.example.domain.models.** { *; }
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.

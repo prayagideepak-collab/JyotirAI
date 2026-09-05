@@ -402,6 +402,7 @@ class AstrologyViewModel(
     private fun calculateBirthChartInternal(birthData: BirthData) {
         _currentBirthData.value = birthData
         _uiState.value = AstrologyUiState.Calculating
+        _currentChart.value = null
 
         viewModelScope.launch {
             val result = astrologyEngine.calculateProfile(birthData)
@@ -429,6 +430,14 @@ class AstrologyViewModel(
     fun selectVarga(vargaType: VargaType) {
         _selectedVargaType.value = vargaType
         val birthData = _currentBirthData.value ?: return
+        if (vargaType == VargaType.D1) {
+            val profile = (_uiState.value as? AstrologyUiState.Success)?.profile
+            if (profile != null) {
+                _currentChart.value = profile.rashiChart
+                return
+            }
+        }
+        _currentChart.value = null
         loadChartForVarga(birthData, vargaType)
     }
 
@@ -463,9 +472,13 @@ class AstrologyViewModel(
     }
 
     private fun loadChartForVarga(birthData: BirthData, vargaType: VargaType) {
+        if (!vargaType.isCalculated) {
+            _currentChart.value = null
+            return
+        }
         viewModelScope.launch {
             val chartResult = astrologyEngine.calculateChart(birthData, vargaType.code)
-            if (chartResult.isSuccess) {
+            if (_selectedVargaType.value == vargaType) {
                 _currentChart.value = chartResult.getOrNull()
             }
         }

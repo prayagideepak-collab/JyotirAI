@@ -155,4 +155,45 @@ class VargaCalculationTest {
         assertEquals(chart1.ascendantSignIndex, chart2.ascendantSignIndex)
         assertEquals(chart1.positions.size, chart2.positions.size)
     }
+
+    @Test
+    fun `D1 and D9 are sourced independently and D9 never falls back to D1`() = runBlocking {
+        val d1Chart = engine.calculateChart(sampleBirthData, "D1").getOrThrow()
+        val d9Chart = engine.calculateChart(sampleBirthData, "D9").getOrThrow()
+
+        assertEquals("D1", d1Chart.type)
+        assertEquals("D9", d9Chart.type)
+        assertEquals(VargaType.D1, d1Chart.vargaType)
+        assertEquals(VargaType.D9, d9Chart.vargaType)
+
+        // Ensure D9 has distinct, independently derived placements from D1
+        assertNotEquals("D1 and D9 ascendants must not be identical copies", d1Chart.ascendantDegreeInSign, d9Chart.ascendantDegreeInSign, 0.0001)
+        val d1Signs = d1Chart.positions.map { it.signIndex }
+        val d9Signs = d9Chart.positions.map { it.signIndex }
+        assertNotEquals("D1 and D9 planet sign lists must differ according to Parashari divisional mapping", d1Signs, d9Signs)
+    }
+
+    @Test
+    fun `D10 Dashamsha is properly labeled and independently computed`() = runBlocking {
+        val d10Chart = engine.calculateChart(sampleBirthData, "D10").getOrThrow()
+        assertEquals("D10", d10Chart.type)
+        assertEquals(VargaType.D10, d10Chart.vargaType)
+        assertTrue(d10Chart.title.contains("Dashamsha", ignoreCase = true) || d10Chart.title.contains("D10", ignoreCase = true))
+    }
+
+    @Test
+    fun `unsupported Varga never displays fake data and returns truthful failure`() = runBlocking {
+        val uncalculatedVargas = VargaType.entries.filter { !it.isCalculated }
+        assertTrue("Must have uncalculated vargas for roadmap", uncalculatedVargas.isNotEmpty())
+
+        for (uncalculated in uncalculatedVargas) {
+            val result = engine.calculateChart(sampleBirthData, uncalculated.code)
+            assertTrue("Uncalculated Varga ${uncalculated.code} must return failure", result.isFailure)
+            val exception = result.exceptionOrNull()
+            assertTrue(
+                "Must return FeatureUnavailable for ${uncalculated.code}",
+                exception is AppError.FeatureUnavailable || exception is IllegalArgumentException
+            )
+        }
+    }
 }
