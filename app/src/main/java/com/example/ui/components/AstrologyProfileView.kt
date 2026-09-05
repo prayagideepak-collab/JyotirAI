@@ -128,8 +128,8 @@ fun AstrologyProfileView(
                 ) {
                     DetailItem(
                         icon = Icons.Default.Place,
-                        label = "Coordinates",
-                        value = "%.4f°, %.4f°".format(birthData.location.latitude, birthData.location.longitude)
+                        label = "Location",
+                        value = if (birthData.location.isVerified) "Verified Place" else "Birth Place"
                     )
                     DetailItem(
                         icon = Icons.Default.Schedule,

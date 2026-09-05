@@ -121,7 +121,14 @@ class AstrologyViewModel(
         viewModelScope.launch {
             locationRepository.saveVerifiedLocation(location)
             _savedLocation.value = location
-            // Reload with new location
+            location.timeZoneId?.let { tz ->
+                try {
+                    val zone = ZoneId.of(tz)
+                    _panchangDateTime.value = _panchangDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
+                    _transitDateTime.value = _transitDateTime.value?.withZoneSameInstant(zone) ?: ZonedDateTime.now(zone)
+                } catch (_: Exception) {}
+            }
+            // Invalidate and reload with new authoritative location
             loadPanchang(location = location)
             loadTransits(location = location)
         }
@@ -227,7 +234,7 @@ class AstrologyViewModel(
         }
         
         val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
-        val finalTargetZoned = dateTime ?: _panchangDateTime.value ?: java.time.ZonedDateTime.now(zone)
+        val finalTargetZoned = dateTime ?: _panchangDateTime.value?.withZoneSameInstant(zone) ?: java.time.ZonedDateTime.now(zone)
         _panchangDateTime.value = finalTargetZoned
         
         viewModelScope.launch {
@@ -269,7 +276,7 @@ class AstrologyViewModel(
         }
         
         val zone = java.time.ZoneId.of(targetLocation.timeZoneId)
-        val finalTargetZoned = dateTime ?: _transitDateTime.value ?: java.time.ZonedDateTime.now(zone)
+        val finalTargetZoned = dateTime ?: _transitDateTime.value?.withZoneSameInstant(zone) ?: java.time.ZonedDateTime.now(zone)
         _transitDateTime.value = finalTargetZoned
 
         val profileToUse = natalProfile ?: (_uiState.value as? AstrologyUiState.Success)?.profile

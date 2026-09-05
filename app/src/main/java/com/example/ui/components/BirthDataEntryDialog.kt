@@ -326,8 +326,9 @@ fun BirthDataEntryDialog(
 
                 if (resolvedLocation != null) {
                     Spacer(modifier = Modifier.height(8.dp))
+                    val elevationText = if (resolvedLocation!!.altitudeMeters != null) " • ${resolvedLocation!!.altitudeMeters?.toInt()}m elev." else ""
                     Text(
-                        text = "Verified: ${resolvedLocation!!.latitude}, ${resolvedLocation!!.longitude} (${resolvedLocation!!.timeZoneId ?: "System TZ"})",
+                        text = "Verified: ${resolvedLocation!!.placeName} (${resolvedLocation!!.timeZoneId ?: "System TZ"})$elevationText",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
