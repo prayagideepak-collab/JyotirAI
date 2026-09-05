@@ -4,12 +4,14 @@ import android.app.Application
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.domain.reading.CameraReadingCoordinator
 import com.example.ui.screens.*
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.ui.viewmodel.AstrologyViewModelFactory
@@ -24,6 +26,7 @@ fun JyotishNavGraph(
     val astrologyViewModel: AstrologyViewModel = viewModel(
         factory = AstrologyViewModelFactory(application)
     )
+    val cameraCoordinator = remember { CameraReadingCoordinator() }
 
     NavHost(
         navController = navController,
@@ -33,7 +36,9 @@ fun JyotishNavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 viewModel = astrologyViewModel,
-                onNavigateToRashifal = { navController.navigate(Screen.Predictions.route) }
+                onNavigateToRashifal = { navController.navigate(Screen.Predictions.route) },
+                onNavigateToPalmReading = { navController.navigate(Screen.PalmReading.route) },
+                onNavigateToFaceReading = { navController.navigate(Screen.FaceReading.route) }
             )
         }
         composable(Screen.Chart.route) { ChartScreen(viewModel = astrologyViewModel) }
@@ -60,6 +65,18 @@ fun JyotishNavGraph(
         composable(Screen.Muhurta.route) { MuhurtaScreen() }
         composable(Screen.Compatibility.route) { CompatibilityScreen() }
         composable(Screen.Numerology.route) { NumerologyScreen() }
+        composable(Screen.PalmReading.route) {
+            PalmReadingScreen(
+                coordinator = cameraCoordinator,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.FaceReading.route) {
+            FaceReadingScreen(
+                coordinator = cameraCoordinator,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
         composable(Screen.Settings.route) { SettingsScreen() }
     }
 }

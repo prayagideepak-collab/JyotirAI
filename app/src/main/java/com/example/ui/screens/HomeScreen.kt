@@ -9,14 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +38,9 @@ import kotlin.coroutines.suspendCoroutine
 @Composable
 fun HomeScreen(
     viewModel: AstrologyViewModel,
-    onNavigateToRashifal: () -> Unit = {}
+    onNavigateToRashifal: () -> Unit = {},
+    onNavigateToPalmReading: () -> Unit = {},
+    onNavigateToFaceReading: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentBirthData by viewModel.currentBirthData.collectAsStateWithLifecycle()
@@ -262,6 +257,13 @@ fun HomeScreen(
                     dailyRashifalState = dailyRashifalState,
                     defaultProfile = defaultUserProfile,
                     onOpenRashifal = onNavigateToRashifal
+                )
+
+                // Dedicated Samudrika Shastra (Palm & Face Reading) Entry Section
+                Spacer(modifier = Modifier.height(16.dp))
+                HomeSamudrikaSection(
+                    onOpenPalmReading = onNavigateToPalmReading,
+                    onOpenFaceReading = onNavigateToFaceReading
                 )
             }
 
@@ -800,3 +802,155 @@ fun HomeDailyRashifalSection(
         }
     }
 }
+
+@Composable
+fun HomeSamudrikaSection(
+    onOpenPalmReading: () -> Unit,
+    onOpenFaceReading: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Samudrika Shastra Readings",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "Camera-Guided",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentAmber
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Palm Reading Card (Back Camera Only)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                .testTag("home_palm_reading_card"),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Palm Reading (Hast Rekha)",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(AccentAmber.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Back Camera",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AccentAmber
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Multi-frame optical hand contour & landmark analysis for major Vedic lines and planetary mounts.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onOpenPalmReading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("start_palm_reading_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = TextPrimary)
+                ) {
+                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Start Palm Reading", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Face Reading Card (Front Camera Only)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                .testTag("home_face_reading_card"),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Face Reading (Mukh Samudrika)",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(AccentEmerald.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Front Camera",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AccentEmerald
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Classical Tri-Bhaga three-zone facial symmetry and feature contemplation using front camera.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onOpenFaceReading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("start_face_reading_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = TextPrimary)
+                ) {
+                    Icon(imageVector = Icons.Default.Face, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Start Face Reading", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
