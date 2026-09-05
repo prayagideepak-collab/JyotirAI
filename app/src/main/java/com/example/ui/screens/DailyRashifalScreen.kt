@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.models.*
+import com.example.domain.speech.AstrologyHindiSpeechFormatter
+import com.example.domain.speech.JyotirAiSpeechManager
+import com.example.ui.components.AstrologySpeakerButton
+import com.example.ui.components.SpeakerButtonStyle
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.ui.viewmodel.DailyRashifalUiState
@@ -38,6 +43,14 @@ fun DailyRashifalScreen(
     viewModel: AstrologyViewModel,
     onNavigateToHome: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val speechManager = remember { JyotirAiSpeechManager(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            speechManager.release()
+        }
+    }
+
     val rashifalState by viewModel.dailyRashifalState.collectAsStateWithLifecycle()
     val targetDate by viewModel.rashifalTargetDate.collectAsStateWithLifecycle()
     val defaultProfile by viewModel.defaultUserProfile.collectAsStateWithLifecycle()
@@ -61,7 +74,10 @@ fun DailyRashifalScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = onNavigateToHome,
+                        onClick = {
+                            speechManager.stop()
+                            onNavigateToHome()
+                        },
                         modifier = Modifier.testTag("rashifal_back_button")
                     ) {
                         Icon(
@@ -72,6 +88,16 @@ fun DailyRashifalScreen(
                     }
                 },
                 actions = {
+                    val currentSuccessRashifal = (rashifalState as? DailyRashifalUiState.Success)?.rashifal
+                    if (currentSuccessRashifal != null) {
+                        AstrologySpeakerButton(
+                            speechManager = speechManager,
+                            hindiTextProvider = { AstrologyHindiSpeechFormatter.formatDailyRashifal(currentSuccessRashifal) },
+                            buttonStyle = SpeakerButtonStyle.ICON_ONLY,
+                            testTag = "rashifal_tts_speaker_button"
+                        )
+                    }
+
                     IconButton(
                         onClick = { viewModel.resetRashifalToToday() },
                         modifier = Modifier.testTag("rashifal_reset_today_button")
@@ -236,7 +262,10 @@ fun DailyRashifalScreen(
 
                     // 2. Daily Energy & Theme Banner
                     item {
-                        DailyThemeCard(rashifal = r)
+                        DailyThemeCard(
+                            rashifal = r,
+                            speechManager = speechManager
+                        )
                     }
 
                     // 3. Astrological Alignment & Traceability Matrix
@@ -408,7 +437,10 @@ private fun DateAndProfileHeader(
 }
 
 @Composable
-private fun DailyThemeCard(rashifal: DailyRashifal) {
+private fun DailyThemeCard(
+    rashifal: DailyRashifal,
+    speechManager: JyotirAiSpeechManager
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -470,6 +502,17 @@ private fun DailyThemeCard(rashifal: DailyRashifal) {
                 text = rashifal.primaryFocus,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Hindi Audio Player Button
+            AstrologySpeakerButton(
+                speechManager = speechManager,
+                hindiTextProvider = { AstrologyHindiSpeechFormatter.formatDailyRashifal(rashifal) },
+                buttonStyle = SpeakerButtonStyle.FILLED_CHIP,
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "rashifal_listen_hindi_button"
             )
         }
     }

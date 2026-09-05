@@ -2,10 +2,13 @@ package com.example.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.domain.alarm.MuhurtaAlarmRepository
+import com.example.domain.alarm.MuhurtaAlarmScheduler
 import com.example.domain.engine.AstrologyEngine
 import com.example.domain.location.LocationRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
+import com.example.domain.pdf.KundliPdfExporter
 import com.example.domain.prediction.DailyPredictionEngine
 import com.example.domain.prediction.DailyPredictionEngineImpl
 import com.example.domain.profile.ProfileRepository
@@ -13,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -56,10 +60,16 @@ class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine,
     private val locationResolver: LocationResolver,
     private val locationRepository: LocationRepository,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val muhurtaAlarmScheduler: MuhurtaAlarmScheduler? = null,
+    private val muhurtaAlarmRepository: MuhurtaAlarmRepository? = null
 ) : ViewModel() {
 
     private val dailyPredictionEngine: DailyPredictionEngine = DailyPredictionEngineImpl(profileRepository, astrologyEngine)
+
+    // Muhurta Alarms State
+    val muhurtaAlarms: StateFlow<List<MuhurtaAlarmConfig>> =
+        muhurtaAlarmRepository?.alarmsState ?: MutableStateFlow(emptyList())
 
     // Persistent User Profile State (Max 3 Slots)
     private val _savedProfiles = MutableStateFlow<List<UserProfile>>(emptyList())
@@ -587,6 +597,24 @@ class AstrologyViewModel(
 
     fun selectTransitPlanet(planet: TransitPosition?) {
         _selectedTransitPlanet.value = planet
+    }
+
+    /**
+     * Toggles dynamic alarm for a specific Muhurta (Brahma Muhurta, Rahukaal, etc.).
+     */
+    fun toggleMuhurtaAlarm(type: MuhurtaAlarmType, isEnabled: Boolean) {
+        val targetLocation = _currentBirthData.value?.location
+            ?: _activeUserProfile.value?.location
+            ?: _savedLocation.value
+            ?: return
+
+        val profileId = _activeProfileId.value
+
+        if (isEnabled) {
+            muhurtaAlarmScheduler?.scheduleAlarm(type, targetLocation, profileId)
+        } else {
+            muhurtaAlarmScheduler?.cancelAlarm(type, profileId)
+        }
     }
 
     /**

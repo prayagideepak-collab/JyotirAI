@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -7,22 +8,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.components.ChartInfoPanel
-import com.example.ui.components.ChartSelectorRow
-import com.example.ui.components.NorthIndianKundliView
-import com.example.ui.components.PlanetDetailDialog
+import com.example.domain.pdf.KundliPdfExporter
+import com.example.domain.speech.AstrologyHindiSpeechFormatter
+import com.example.domain.speech.JyotirAiSpeechManager
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyUiState
 import com.example.ui.viewmodel.AstrologyViewModel
@@ -31,10 +34,19 @@ import com.example.ui.viewmodel.AstrologyViewModel
 fun ChartScreen(
     viewModel: AstrologyViewModel
 ) {
+    val context = LocalContext.current
+    val speechManager = remember { JyotirAiSpeechManager(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            speechManager.release()
+        }
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedVarga by viewModel.selectedVargaType.collectAsStateWithLifecycle()
     val currentChart by viewModel.currentChart.collectAsStateWithLifecycle()
     val selectedPlanetDetail by viewModel.selectedPlanetDetail.collectAsStateWithLifecycle()
+    val dashaTimeline by viewModel.dashaTimeline.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -76,28 +88,51 @@ fun ChartScreen(
                     val profile = state.profile
                     val activeChart = currentChart ?: profile.rashiChart
 
-                    // 1. Horizontal Varga Selector
+                    // 1. Kundli Action Bar: PDF Export & Hindi Audio
+                    KundliActionBar(
+                        onExportPdf = {
+                            try {
+                                val pdfFile = KundliPdfExporter.generateKundliPdf(
+                                    context = context,
+                                    profile = profile,
+                                    activeChart = activeChart,
+                                    dashaTimeline = dashaTimeline
+                                )
+                                val shareIntent = KundliPdfExporter.createSharePdfIntent(context, pdfFile)
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Share or Save Kundli PDF"))
+                                Toast.makeText(context, "Kundli PDF generated with JyotirAI watermark", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to export PDF: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        speechManager = speechManager,
+                        hindiTextProvider = { AstrologyHindiSpeechFormatter.formatKundliSummary(profile, activeChart) }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 2. Horizontal Varga Selector
                     ChartSelectorRow(
                         selectedVarga = selectedVarga,
                         onSelectVarga = { viewModel.selectVarga(it) },
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
 
-                    // 2. North Indian Kundli Visual Sacred Geometry
+                    // 3. North Indian Kundli Visual Sacred Geometry
                     NorthIndianKundliView(
                         chart = activeChart,
                         onPlanetClick = { viewModel.selectPlanetDetail(it) },
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
 
-                    // 3. Detailed Information Panel with Placements & Significations
+                    // 4. Detailed Information Panel with Placements & Significations
                     ChartInfoPanel(
                         chart = activeChart,
                         onPlanetClick = { viewModel.selectPlanetDetail(it) },
                         modifier = Modifier.padding(bottom = 32.dp)
                     )
 
-                    // 4. Interactive Modal Planet Detail Dialog
+                    // 5. Interactive Modal Planet Detail Dialog
                     selectedPlanetDetail?.let { planet ->
                         PlanetDetailDialog(
                             planet = planet,
@@ -179,4 +214,60 @@ fun ChartScreen(
         }
     }
 }
+
+@Composable
+private fun KundliActionBar(
+    onExportPdf: () -> Unit,
+    speechManager: JyotirAiSpeechManager,
+    hindiTextProvider: () -> String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // PDF Export Action
+            Button(
+                onClick = onExportPdf,
+                modifier = Modifier
+                    .heightIn(min = 40.dp)
+                    .testTag("export_kundli_pdf_button"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentAmber,
+                    contentColor = DeepNavy
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PictureAsPdf,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Export PDF",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+
+            // Hindi Audio Speaker Control
+            AstrologySpeakerButton(
+                speechManager = speechManager,
+                hindiTextProvider = hindiTextProvider,
+                buttonStyle = SpeakerButtonStyle.FILLED_CHIP,
+                testTag = "kundli_listen_hindi_button"
+            )
+        }
+    }
+}
+
 

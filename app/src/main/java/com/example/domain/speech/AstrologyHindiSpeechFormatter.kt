@@ -1,0 +1,351 @@
+package com.example.domain.speech
+
+import com.example.domain.models.*
+import java.time.LocalDate
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+
+/**
+ * Prepares structured astrological content into natural, dignified spoken Hindi.
+ *
+ * Guarantees:
+ * 1. Preserves all classical Sanskrit/Vedic terminology (Grahas, Rashis, Nakshatras, Dashas, Muhurtas, Panchang elements).
+ * 2. Removes Markdown, emojis, control characters, and raw formatting symbols.
+ * 3. Formats natural sentence boundaries with Hindi dandas (।) and commas for rhythmic TTS playback.
+ * 4. Preserves non-fatalistic, traditional guidance framing without making predictive certainty claims.
+ */
+object AstrologyHindiSpeechFormatter {
+
+    // Classical Graha mapping (English -> Sanskrit / Hindi)
+    private val GRAHA_HINDI_MAP = mapOf(
+        "Sun" to "सूर्य",
+        "Moon" to "चन्द्र",
+        "Mars" to "मंगल",
+        "Mercury" to "बुध",
+        "Jupiter" to "गुरु",
+        "Venus" to "शुक्र",
+        "Saturn" to "शनि",
+        "Rahu" to "राहु",
+        "Ketu" to "केतु",
+        "Uranus" to "हर्षल",
+        "Neptune" to "वरुण",
+        "Pluto" to "यम"
+    )
+
+    // Classical Rashi mapping (English -> Sanskrit / Hindi)
+    private val RASHI_HINDI_MAP = mapOf(
+        "Aries" to "मेष",
+        "Taurus" to "वृषभ",
+        "Gemini" to "मिथुन",
+        "Cancer" to "कर्क",
+        "Leo" to "सिंह",
+        "Virgo" to "कन्या",
+        "Libra" to "तुला",
+        "Scorpio" to "वृश्चिक",
+        "Sagittarius" to "धनु",
+        "Capricorn" to "मकर",
+        "Aquarius" to "कुंभ",
+        "Pisces" to "मीन"
+    )
+
+    // Nakshatra Sanskrit names
+    private val NAKSHATRA_HINDI_MAP = mapOf(
+        "Ashwini" to "अश्विनी",
+        "Bharani" to "भरणी",
+        "Krittika" to "कृत्तिका",
+        "Rohini" to "रोहिणी",
+        "Mrigashira" to "मृगशिरा",
+        "Mrigashirsha" to "मृगशिरा",
+        "Ardra" to "आर्द्रा",
+        "Punarvasu" to "पुनर्वसु",
+        "Pushya" to "पुष्य",
+        "Ashlesha" to "आश्लेषा",
+        "Magha" to "मघा",
+        "Purva Phalguni" to "पूर्वा फाल्गुनी",
+        "Uttara Phalguni" to "उत्तरा फाल्गुनी",
+        "Hasta" to "हस्त",
+        "Chitra" to "चित्रा",
+        "Swati" to "स्वाति",
+        "Vishakha" to "विशाखा",
+        "Anuradha" to "अनुराधा",
+        "Jyeshtha" to "ज्येष्ठा",
+        "Mula" to "मूल",
+        "Purva Ashadha" to "पूर्वाषाढ़ा",
+        "Uttara Ashadha" to "उत्तराषाढ़ा",
+        "Shravana" to "श्रवण",
+        "Dhanishta" to "धनिष्ठा",
+        "Shatabhisha" to "शतभिषा",
+        "Purva Bhadrapada" to "पूर्वाभाद्रपद",
+        "Uttara Bhadrapada" to "उत्तराभाद्रपद",
+        "Revati" to "रेवती"
+    )
+
+    /**
+     * Converts a DailyRashifal object into natural, fluid spoken Hindi.
+     */
+    fun formatDailyRashifal(rashifal: DailyRashifal): String {
+        val sb = StringBuilder()
+
+        val dateFormatted = rashifal.date.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))
+        sb.append("ज्योतिर् एआई दैनिक राशिफल। ")
+        sb.append("दिनांक $dateFormatted। ")
+        sb.append("दैनिक ऊर्जा समन्वय ${rashifal.energyScore} प्रतिशत। ")
+        sb.append("आज का मुख्य विषय: ${translateToHindiSpeech(rashifal.dailyTheme)}। ")
+        sb.append("प्राथमिक एकाग्रता: ${translateToHindiSpeech(rashifal.primaryFocus)}। ")
+
+        // Astrological context
+        val moonRashiHindi = RASHI_HINDI_MAP[rashifal.astrologicalAlignment.moonRashi] ?: rashifal.astrologicalAlignment.moonRashi
+        val nakshatraHindi = NAKSHATRA_HINDI_MAP[rashifal.astrologicalAlignment.transitNakshatra] ?: rashifal.astrologicalAlignment.transitNakshatra
+        val dashaLordHindi = GRAHA_HINDI_MAP[rashifal.astrologicalAlignment.activeMahadashaLord] ?: rashifal.astrologicalAlignment.activeMahadashaLord
+        val antardashaLordHindi = GRAHA_HINDI_MAP[rashifal.astrologicalAlignment.activeAntardashaLord] ?: rashifal.astrologicalAlignment.activeAntardashaLord
+
+        sb.append("ज्योतिषीय संदर्भ: ")
+        sb.append("गोचर चन्द्रमा $moonRashiHindi राशि और $nakshatraHindi नक्षत्र में संचरण कर रहे हैं। ")
+        sb.append("सक्रिय दशा $dashaLordHindi की महादशा और $antardashaLordHindi की अंतर्दशा है। ")
+
+        // Key Influences
+        if (rashifal.keyInfluences.isNotEmpty()) {
+            sb.append("मुख्य प्रभाव: ")
+            rashifal.keyInfluences.forEach { influence ->
+                val sourceHindi = translateToHindiSpeech(influence.astrologicalSource)
+                val textHindi = translateToHindiSpeech(influence.interpretationText)
+                sb.append("$sourceHindi, $textHindi। ")
+            }
+        }
+
+        // Priorities
+        if (rashifal.priorities.isNotEmpty()) {
+            sb.append("आज के अनुकूल कार्य एवं प्राथमिकताएं: ")
+            rashifal.priorities.forEach { priority ->
+                sb.append("${translateToHindiSpeech(priority)}। ")
+            }
+        }
+
+        // Cautions
+        if (rashifal.cautions.isNotEmpty()) {
+            sb.append("सावधानी और सतर्कता के क्षेत्र: ")
+            rashifal.cautions.forEach { caution ->
+                sb.append("${translateToHindiSpeech(caution)}। ")
+            }
+        }
+
+        // Traditional Remedies
+        if (rashifal.remedies.isNotEmpty()) {
+            sb.append("पारंपरिक उपचारात्मक सुझाव: ")
+            rashifal.remedies.forEach { remedy ->
+                sb.append("${translateToHindiSpeech(remedy)}। ")
+            }
+        }
+
+        // Ethical Disclaimer
+        sb.append("यह पारंपरिक वैदिक ज्योतिष पर आधारित सांकेतिक मार्गदर्शन है, कोई अंतिम भाग्यफल नहीं।")
+
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts a Kundli chart and profile interpretation into natural Hindi speech.
+     */
+    fun formatKundliSummary(profile: AstrologyProfile, activeChart: Chart): String {
+        val sb = StringBuilder()
+        val birthData = profile.birthData
+        val dateFormatted = "${birthData.day} ${getMonthNameHindi(birthData.month)} ${birthData.year}"
+        val timeFormatted = String.format("%02d:%02d", birthData.hour, birthData.minute)
+
+        sb.append("ज्योतिर् एआई कुण्डली विवरण। ")
+        sb.append("जातक का नाम: ${birthData.name}। ")
+        sb.append("जन्म तिथि: $dateFormatted, समय: $timeFormatted, स्थान: ${birthData.location.placeName}। ")
+
+        val ascSign = RASHI_HINDI_MAP[profile.ascendant.rashi.name] ?: profile.ascendant.rashi.sanskritName
+        sb.append("लग्न: $ascSign लग्न। ")
+
+        val chartTitleHindi = when (activeChart.type) {
+            VargaType.D1 -> "लग्न कुण्डली (डी १)"
+            VargaType.D9 -> "नवांश कुण्डली (डी ९)"
+            VargaType.D10 -> "दशांश कुण्डली (डी १०)"
+            else -> "${activeChart.title} (${activeChart.type.name})"
+        }
+        sb.append("प्रदर्शित चक्र: $chartTitleHindi। ")
+
+        sb.append("मुख्य ग्रह स्थितियां: ")
+        activeChart.planets.forEach { planet ->
+            val grahaHindi = GRAHA_HINDI_MAP[planet.name] ?: planet.sanskritName
+            val rashiHindi = RASHI_HINDI_MAP[planet.rashi.name] ?: planet.rashi.sanskritName
+            val houseHindi = getHouseNameHindi(planet.house)
+            val retroHindi = if (planet.isRetrograde) ", वक्री" else ""
+            sb.append("$grahaHindi $rashiHindi राशि में, $houseHindi में$retroHindi स्थित हैं। ")
+        }
+
+        sb.append("यह कुण्डली फलित वैदिक ज्योतिष के शास्त्रीय सिद्धांतों पर आधारित व्याख्या है।")
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts Vimshottari Dasha timeline into natural Hindi speech.
+     */
+    fun formatDashaSummary(timeline: DashaTimeline): String {
+        val sb = StringBuilder()
+        sb.append("विंशोत्तरी दशा का विवरण। ")
+
+        val currentMaha = timeline.currentMahadasha
+        if (currentMaha != null) {
+            val mahaPlanet = GRAHA_HINDI_MAP[currentMaha.planet.displayName] ?: currentMaha.planet.sanskritName
+            sb.append("वर्तमान महादशा $mahaPlanet की है। ")
+
+            val currentAntar = timeline.currentAntardasha
+            if (currentAntar != null) {
+                val antarPlanet = GRAHA_HINDI_MAP[currentAntar.planet.displayName] ?: currentAntar.planet.sanskritName
+                sb.append("वर्तमान अंतर्दशा $antarPlanet की है। ")
+            }
+        }
+
+        sb.append("दशा काल में सम्बन्धित ग्रहों के कारकत्व और भावेश्वर प्रभाव के अनुसार जातक को अनुभव प्राप्त होते हैं।")
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Converts Panchang snapshot into natural Hindi speech.
+     */
+    fun formatPanchangSummary(panchang: PanchangSnapshot): String {
+        val sb = StringBuilder()
+        val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
+
+        sb.append("दैनिक पंचांग विवरण। ")
+        sb.append("स्थान: ${panchang.location.placeName}। ")
+        sb.append("वार: ${panchang.vara.sanskritName}। ")
+        sb.append("तिथि: ${panchang.tithi.name}, ${if (panchang.paksha == Paksha.SHUKLA) "शुक्ल पक्ष" else "कृष्ण पक्ष"}। ")
+        sb.append("नक्षत्र: ${panchang.nakshatra.nakshatra.sanskritName}, चरण ${panchang.nakshatra.pada}। ")
+        sb.append("योग: ${panchang.yoga.name}। ")
+        sb.append("करण: ${panchang.karana.name}। ")
+
+        if (panchang.sunrise != null) {
+            sb.append("सूर्योदय: ${panchang.sunrise.format(timeFormatter)}। ")
+        }
+        if (panchang.sunset != null) {
+            sb.append("सूर्यास्त: ${panchang.sunset.format(timeFormatter)}। ")
+        }
+
+        panchang.muhurta?.let { muhurta ->
+            muhurta.brahmaMuhurta?.let { bm ->
+                sb.append("ब्रह्म मुहूर्त: ${bm.start.format(timeFormatter)} से ${bm.end.format(timeFormatter)}। ")
+            }
+            muhurta.rahukaal?.let { rk ->
+                sb.append("राहुकाल: ${rk.start.format(timeFormatter)} से ${rk.end.format(timeFormatter)}। ")
+            }
+        }
+
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
+     * Core translator for English astrological sentence templates to natural Hindi speech.
+     */
+    fun translateToHindiSpeech(text: String): String {
+        var translated = text
+
+        // Replace common terms
+        GRAHA_HINDI_MAP.forEach { (en, hi) ->
+            translated = translated.replace(Regex("\\b$en\\b", RegexOption.IGNORE_CASE), hi)
+        }
+        RASHI_HINDI_MAP.forEach { (en, hi) ->
+            translated = translated.replace(Regex("\\b$en\\b", RegexOption.IGNORE_CASE), hi)
+        }
+        NAKSHATRA_HINDI_MAP.forEach { (en, hi) ->
+            translated = translated.replace(Regex("\\b$en\\b", RegexOption.IGNORE_CASE), hi)
+        }
+
+        // Replace domain phrases
+        val phraseMap = mapOf(
+            "Mahadasha" to "महादशा",
+            "Antardasha" to "अंतर्दशा",
+            "Pratyantardasha" to "प्रत्यंतर्दशा",
+            "Brahma Muhurta" to "ब्रह्म मुहूर्त",
+            "Rahukaal" to "राहुकाल",
+            "Rahu Kaal" to "राहुकाल",
+            "Tithi" to "तिथि",
+            "Nakshatra" to "नक्षत्र",
+            "Yoga" to "योग",
+            "Karana" to "करण",
+            "Ascendant" to "लग्न",
+            "Transit" to "गोचर",
+            "Transits" to "गोचर",
+            "House" to "भाव",
+            "Retrograde" to "वक्री",
+            "Combust" to "अस्त",
+            "Exalted" to "उच्च",
+            "Debilitated" to "नीच",
+            "benefic" to "शुभ",
+            "malefic" to "अशुभ",
+            "favorable" to "अनुकूल",
+            "caution" to "सतर्कता",
+            "remedy" to "उपाय",
+            "alignment" to "समन्वय",
+            "energy" to "ऊर्जा",
+            "focus" to "एकाग्रता",
+            "meditation" to "ध्यान",
+            "mindfulness" to "सजगता",
+            "priorities" to "प्राथमिकताएं",
+            "cautions" to "सावधानियां",
+            "remedies" to "उपाय",
+            "today" to "आज",
+            "active" to "सक्रिय"
+        )
+
+        phraseMap.forEach { (en, hi) ->
+            translated = translated.replace(Regex("\\b$en\\b", RegexOption.IGNORE_CASE), hi)
+        }
+
+        return translated
+    }
+
+    /**
+     * Cleans text to remove markdown, UI markers, and unwanted symbols.
+     */
+    fun cleanForSpeech(input: String): String {
+        return input
+            .replace(Regex("[#*`_\\[\\]()~>{}\\\\]"), " ")
+            .replace(Regex("[•\\-–—]"), " ")
+            .replace(Regex("%"), " प्रतिशत ")
+            .replace(Regex("&"), " और ")
+            .replace(Regex("\\s+"), " ")
+            .replace("..", ".")
+            .replace("।।", "।")
+            .trim()
+    }
+
+    private fun getHouseNameHindi(house: Int): String {
+        return when (house) {
+            1 -> "प्रथम भाव"
+            2 -> "द्वितीय भाव"
+            3 -> "तृतीय भाव"
+            4 -> "चतुर्थ भाव"
+            5 -> "पंचम भाव"
+            6 -> "षष्ठ भाव"
+            7 -> "सप्तम भाव"
+            8 -> "अष्टम भाव"
+            9 -> "नवम भाव"
+            10 -> "दशम भाव"
+            11 -> "एकादश भाव"
+            12 -> "द्वादश भाव"
+            else -> "${house}वें भाव"
+        }
+    }
+
+    private fun getMonthNameHindi(month: Int): String {
+        return when (month) {
+            1 -> "जनवरी"
+            2 -> "फरवरी"
+            3 -> "मार्च"
+            4 -> "अप्रैल"
+            5 -> "मई"
+            6 -> "जून"
+            7 -> "जुलाई"
+            8 -> "अगस्त"
+            9 -> "सितंबर"
+            10 -> "अक्टूबर"
+            11 -> "नवंबर"
+            12 -> "दिसंबर"
+            else -> "माह $month"
+        }
+    }
+}
