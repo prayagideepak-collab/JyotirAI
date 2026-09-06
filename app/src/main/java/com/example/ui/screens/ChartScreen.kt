@@ -48,6 +48,7 @@ fun ChartScreen(
     val currentChart by viewModel.currentChart.collectAsStateWithLifecycle()
     val selectedPlanetDetail by viewModel.selectedPlanetDetail.collectAsStateWithLifecycle()
     val dashaTimeline by viewModel.dashaTimeline.collectAsStateWithLifecycle()
+    val yogaDoshaState by viewModel.yogaDoshaState.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -192,7 +193,15 @@ fun ChartScreen(
                             modifier = Modifier.padding(bottom = 20.dp)
                         )
 
-                        // 5. Interactive Modal Planet Detail Dialog
+                        // 5. Vedic Yoga & Dosha Analysis (Phase 6)
+                        YogaDoshaView(
+                            state = yogaDoshaState,
+                            speechManager = speechManager,
+                            onRefresh = { (uiState as? AstrologyUiState.Success)?.profile?.let { viewModel.loadYogaDoshaAnalysis(it) } },
+                            modifier = Modifier.padding(bottom = 32.dp)
+                        )
+
+                        // 6. Interactive Modal Planet Detail Dialog
                         selectedPlanetDetail?.let { planet ->
                             PlanetDetailDialog(
                                 planet = planet,

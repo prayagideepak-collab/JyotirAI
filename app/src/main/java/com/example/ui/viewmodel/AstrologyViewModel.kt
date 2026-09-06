@@ -38,6 +38,13 @@ sealed interface AdvancedInterpretationUiState {
     data class Error(val message: String) : AdvancedInterpretationUiState
 }
 
+sealed interface YogaDoshaUiState {
+    data object Empty : YogaDoshaUiState
+    data object Loading : YogaDoshaUiState
+    data class Success(val snapshot: YogaDoshaSnapshot) : YogaDoshaUiState
+    data class Error(val message: String) : YogaDoshaUiState
+}
+
 sealed interface DashaUiState {
     data object Empty : DashaUiState
     data object Calculating : DashaUiState
@@ -148,7 +155,12 @@ class AstrologyViewModel(
     private val _panchangDateTime = MutableStateFlow<ZonedDateTime?>(null)
     val panchangDateTime: StateFlow<ZonedDateTime?> = _panchangDateTime.asStateFlow()
 
-    // Advanced Vedic Intelligence & Interpretation State (Phase 12)
+    // Yoga & Dosha State (Phase 6)
+    private val _yogaDoshaState = MutableStateFlow<YogaDoshaUiState>(YogaDoshaUiState.Empty)
+    val yogaDoshaState: StateFlow<YogaDoshaUiState> = _yogaDoshaState.asStateFlow()
+    private val yogaDoshaCache = java.util.concurrent.ConcurrentHashMap<String, YogaDoshaSnapshot>()
+
+    // Advanced Vedic Intelligence & Interpretation State (Phase 12 - Frozen)
     private val _advancedInterpretationState = MutableStateFlow<AdvancedInterpretationUiState>(AdvancedInterpretationUiState.Empty)
     val advancedInterpretationState: StateFlow<AdvancedInterpretationUiState> = _advancedInterpretationState.asStateFlow()
 
@@ -424,7 +436,7 @@ class AstrologyViewModel(
                     loadChartForVarga(birthData, _selectedVargaType.value)
                     loadDashaTimeline(birthData)
                     loadTransits(location = birthData.location, natalProfile = profile)
-                    refreshAdvancedInterpretation()
+                    loadYogaDoshaAnalysis(profile)
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
@@ -515,8 +527,33 @@ class AstrologyViewModel(
         _dashaTimeline.value = null
         _dashaUiState.value = DashaUiState.Empty
         _expandedMahadashaPlanet.value = null
+        _yogaDoshaState.value = YogaDoshaUiState.Empty
         _advancedInterpretationState.value = AdvancedInterpretationUiState.Empty
         loadTransits(natalProfile = null)
+    }
+
+    /**
+     * Calculates deterministic Vedic Yoga & Dosha analysis for the active profile (Phase 6).
+     */
+    fun loadYogaDoshaAnalysis(profile: AstrologyProfile) {
+        val cacheKey = "${profile.birthData.name}_${profile.birthData.date}_${profile.birthData.time}_${profile.birthData.location.latitude}_${profile.birthData.location.longitude}"
+        yogaDoshaCache[cacheKey]?.let { cached ->
+            _yogaDoshaState.value = YogaDoshaUiState.Success(cached)
+            return
+        }
+
+        _yogaDoshaState.value = YogaDoshaUiState.Loading
+        viewModelScope.launch {
+            try {
+                val snapshot = com.example.domain.engine.YogaDoshaCalculator.calculate(profile)
+                yogaDoshaCache[cacheKey] = snapshot
+                _yogaDoshaState.value = YogaDoshaUiState.Success(snapshot)
+            } catch (e: Exception) {
+                _yogaDoshaState.value = YogaDoshaUiState.Error(
+                    e.message ?: "Failed to calculate Yoga and Dosha analysis."
+                )
+            }
+        }
     }
 
     /**
