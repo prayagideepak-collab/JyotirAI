@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -45,6 +46,7 @@ fun AstrologySpeakerButton(
     val context = LocalContext.current
     val speechState by speechManager.speechState.collectAsStateWithLifecycle()
     val isSpeaking = speechState is SpeechState.Speaking
+    val isPaused = speechState is SpeechState.Paused
 
     // Handle toast for unavailable/error states
     LaunchedEffect(speechState) {
@@ -83,9 +85,9 @@ fun AstrologySpeakerButton(
                     .testTag(testTag)
             ) {
                 Icon(
-                    imageVector = if (isSpeaking) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                    imageVector = if (isSpeaking || isPaused) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = if (isSpeaking) "Stop Spoken Reading" else "Listen in Hindi",
-                    tint = if (isSpeaking) MaterialTheme.colorScheme.error else AccentAmber,
+                    tint = if (isSpeaking || isPaused) MaterialTheme.colorScheme.error else AccentAmber,
                     modifier = Modifier
                         .size(24.dp)
                         .scale(pulseScale)
@@ -103,10 +105,10 @@ fun AstrologySpeakerButton(
                     .heightIn(min = 40.dp)
                     .testTag(testTag),
                 shape = RoundedCornerShape(16.dp),
-                color = if (isSpeaking) MaterialTheme.colorScheme.error.copy(alpha = 0.15f) else AccentAmber.copy(alpha = 0.15f),
-                border = androidx.compose.foundation.BorderStroke(
+                color = if (isSpeaking || isPaused) MaterialTheme.colorScheme.error.copy(alpha = 0.15f) else AccentAmber.copy(alpha = 0.15f),
+                border = BorderStroke(
                     1.dp,
-                    if (isSpeaking) MaterialTheme.colorScheme.error else AccentAmber
+                    if (isSpeaking || isPaused) MaterialTheme.colorScheme.error else AccentAmber
                 )
             ) {
                 Row(
@@ -115,19 +117,95 @@ fun AstrologySpeakerButton(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = if (isSpeaking) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                        imageVector = if (isSpeaking || isPaused) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = null,
-                        tint = if (isSpeaking) MaterialTheme.colorScheme.error else AccentAmber,
+                        tint = if (isSpeaking || isPaused) MaterialTheme.colorScheme.error else AccentAmber,
                         modifier = Modifier
                             .size(18.dp)
                             .scale(pulseScale)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isSpeaking) "Stop Hindi Audio" else "Listen in Hindi (सुनें)",
+                        text = if (isSpeaking) "Stop Hindi Audio" else if (isPaused) "Resume / Stop" else "Listen in Hindi (सुनें)",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (isSpeaking) MaterialTheme.colorScheme.error else AccentAmber
+                        color = if (isSpeaking || isPaused) MaterialTheme.colorScheme.error else AccentAmber
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Reusable audio control bar with live-read status and pause/resume/stop buttons.
+ */
+@Composable
+fun AstrologyAudioBar(
+    speechManager: JyotirAiSpeechManager,
+    modifier: Modifier = Modifier
+) {
+    val speechState by speechManager.speechState.collectAsStateWithLifecycle()
+    val activeSegment by speechManager.activeSegmentIndex.collectAsStateWithLifecycle()
+    val segments by speechManager.segments.collectAsStateWithLifecycle()
+    val isSpeaking = speechState is SpeechState.Speaking
+    val isPaused = speechState is SpeechState.Paused
+
+    if (isSpeaking || isPaused || activeSegment >= 0) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .testTag("astrology_audio_bar"),
+            shape = RoundedCornerShape(12.dp),
+            color = AccentAmber.copy(alpha = 0.12f),
+            border = BorderStroke(1.dp, AccentAmber.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (isPaused) "ऑडियो रुका हुआ है (Paused)" else "अभी यह हिस्सा पढ़ा जा रहा है...",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = AccentAmber
+                        )
+                        if (activeSegment in segments.indices) {
+                            Text(
+                                text = segments[activeSegment].text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isSpeaking) {
+                        IconButton(onClick = { speechManager.pause() }, modifier = Modifier.size(36.dp).testTag("tts_pause_button")) {
+                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = AccentAmber, modifier = Modifier.size(18.dp))
+                        }
+                    } else if (isPaused) {
+                        IconButton(onClick = { speechManager.resume() }, modifier = Modifier.size(36.dp).testTag("tts_resume_button")) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = AccentAmber, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    IconButton(onClick = { speechManager.stop() }, modifier = Modifier.size(36.dp).testTag("tts_stop_button")) {
+                        Icon(Icons.Default.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }

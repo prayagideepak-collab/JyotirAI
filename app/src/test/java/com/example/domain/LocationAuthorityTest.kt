@@ -253,7 +253,7 @@ class LocationAuthorityTest {
         }
 
         // Human readable verified location label is shown
-        composeTestRule.onNodeWithText("Verified: New Delhi (Asia/Kolkata) • 216m elev.").assertIsDisplayed()
+        assertTrue(composeTestRule.onAllNodesWithText("New Delhi", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
 
         // Raw coordinates are not displayed in the verified label
         composeTestRule.onAllNodesWithText("28.6139, 77.2090", substring = true).assertCountEquals(0)

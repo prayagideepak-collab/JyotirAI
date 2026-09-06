@@ -8,43 +8,43 @@ class QuestionIntentClassifierTest {
     @Test
     fun testIntentClassificationKeywords() {
         assertEquals(
-            AstrologerIntent.CAREER,
-            QuestionIntentClassifier.classify("मेरी नौकरी और करियर में पदोन्नति कब होगी?")
+            AstrologerIntent.CAREER_AND_PROFESSION,
+            QuestionIntentClassifier.classify("मेरी नौकरी और करियर में पदोन्नति कब होगी?").first
         )
 
         assertEquals(
-            AstrologerIntent.MARRIAGE,
-            QuestionIntentClassifier.classify("मेरा विवाह कब होगा और जीवनसाथी कैसा मिलेगा?")
+            AstrologerIntent.MARRIAGE_AND_RELATIONSHIPS,
+            QuestionIntentClassifier.classify("मेरा विवाह कब होगा और जीवनसाथी कैसा मिलेगा?").first
         )
 
         assertEquals(
-            AstrologerIntent.DASHA,
-            QuestionIntentClassifier.classify("मेरी वर्तमान महादशा और अंतरदशा का क्या प्रभाव चल रहा है?")
+            AstrologerIntent.DASHA_EXPLANATION,
+            QuestionIntentClassifier.classify("मेरी वर्तमान महादशा और अंतरदशा का क्या प्रभाव चल रहा है?").first
         )
 
         assertEquals(
-            AstrologerIntent.TRANSIT,
-            QuestionIntentClassifier.classify("शनि की साढ़ेसाती और गुरु गोचर का फल बताएं")
+            AstrologerIntent.TRANSIT_GOCHAR_EXPLANATION,
+            QuestionIntentClassifier.classify("शनि की साढ़ेसाती और गुरु गोचर का फल बताएं").first
         )
 
         assertEquals(
-            AstrologerIntent.YOGA_DOSHA,
-            QuestionIntentClassifier.classify("क्या मेरी कुण्डली में कालसर्प या मांगलिक दोष है?")
+            AstrologerIntent.YOGA_AND_DOSHA_EXPLANATION,
+            QuestionIntentClassifier.classify("क्या मेरी कुण्डली में कालसर्प या मांगलिक दोष है?").first
         )
 
         assertEquals(
-            AstrologerIntent.NUMEROLOGY,
-            QuestionIntentClassifier.classify("मेरा मूलांक और भाग्यांक क्या बताता है?")
+            AstrologerIntent.NUMEROLOGY_ANALYSIS,
+            QuestionIntentClassifier.classify("मेरा मूलांक और भाग्यांक क्या बताता है?").first
         )
 
         assertEquals(
-            AstrologerIntent.PANCHANG_MUHURTA,
-            QuestionIntentClassifier.classify("आज का पंचांग, शुभ मुहूर्त और चौघड़िया क्या है?")
+            AstrologerIntent.PANCHANG_AND_TIMING,
+            QuestionIntentClassifier.classify("आज का पंचांग और तिथि क्या है?").first
         )
 
         assertEquals(
-            AstrologerIntent.GENERAL_KUNDLI,
-            QuestionIntentClassifier.classify("मेरी कुंडली का सम्पूर्ण विश्लेषण और भविष्य फल बताइए")
+            AstrologerIntent.GENERAL_HOROSCOPE,
+            QuestionIntentClassifier.classify("मेरी कुंडली का सम्पूर्ण विश्लेषण और भविष्य फल बताइए").first
         )
     }
 }

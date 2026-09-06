@@ -252,7 +252,9 @@ fun BirthDataEntryDialog(
                         value = placeNameQuery,
                         onValueChange = { 
                             placeNameQuery = it
-                            resolvedLocation = null
+                            if (initialData?.location?.placeName != it) {
+                                resolvedLocation = null
+                            }
                         },
                         label = { Text("City / Place") },
                         singleLine = true,
