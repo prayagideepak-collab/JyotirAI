@@ -78,10 +78,17 @@ object MuhurtaAlarmCalculator {
         val panchang = PanchangCalculator.calculatePanchang(dateTime, location, swe)
         val muhurta = panchang.muhurta ?: return null
 
-        return when (type) {
+        val interval = when (type) {
             MuhurtaAlarmType.BRAHMA_MUHURTA -> muhurta.brahmaMuhurta
-            MuhurtaAlarmType.RAHUKAAL -> muhurta.rahukaal
+            MuhurtaAlarmType.RAHUKAAL_START, MuhurtaAlarmType.RAHUKAAL -> muhurta.rahukaal
+            MuhurtaAlarmType.RAHUKAAL_END -> muhurta.rahukaal
             MuhurtaAlarmType.ABHIJIT_MUHURTA -> muhurta.abhijitMuhurta
+        } ?: return null
+
+        return if (type == MuhurtaAlarmType.RAHUKAAL_END) {
+            TimeInterval(interval.end, interval.end.plusMinutes(1), interval.name, interval.description)
+        } else {
+            interval
         }
     }
 

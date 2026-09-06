@@ -473,15 +473,15 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                     muhurta.brahmaMuhurta?.let { bm ->
                                         val isBmAlarmOn = alarms.any { it.type == MuhurtaAlarmType.BRAHMA_MUHURTA && it.isEnabled }
                                         MuhurtaAlarmRow(
-                                            title = "Brahma Muhurta (ब्रह्म मुहूर्त)",
+                                            title = "⏰ ब्रह्म मुहूर्त (Brahma Muhurta)",
                                             timeRange = "${bm.start.format(timeFormatter)} - ${bm.end.format(timeFormatter)}",
-                                            description = "Auspicious dawn period for meditation & study",
+                                            description = "ब्रह्म मुहूर्त का समय शुरू हो रहा है。",
                                             isAlarmEnabled = isBmAlarmOn,
                                             onToggleAlarm = { enabled ->
                                                 viewModel.toggleMuhurtaAlarm(MuhurtaAlarmType.BRAHMA_MUHURTA, enabled)
                                                 Toast.makeText(
                                                     context,
-                                                    if (enabled) "Brahma Muhurta dynamic alarm scheduled" else "Brahma Muhurta alarm canceled",
+                                                    if (enabled) "मुहूर्त सूचना चालू है" else "मुहूर्त सूचना बंद है",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             },
@@ -503,22 +503,44 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
 
                                     // Rahukaal Card with Alarm Toggle
                                     muhurta.rahukaal?.let { rk ->
-                                        val isRkAlarmOn = alarms.any { it.type == MuhurtaAlarmType.RAHUKAAL && it.isEnabled }
+                                        val isRkAlarmOn = alarms.any { it.type == MuhurtaAlarmType.RAHUKAAL_START && it.isEnabled }
                                         MuhurtaAlarmRow(
-                                            title = "Rahukaal (राहुकाल)",
+                                            title = "⏰ राहुकाल शुरू (Rahukaal Start)",
                                             timeRange = "${rk.start.format(timeFormatter)} - ${rk.end.format(timeFormatter)}",
-                                            description = "Caution window for routine activities",
+                                            description = "राहुकाल शुरू हो रहा है。",
                                             isAlarmEnabled = isRkAlarmOn,
                                             onToggleAlarm = { enabled ->
-                                                viewModel.toggleMuhurtaAlarm(MuhurtaAlarmType.RAHUKAAL, enabled)
+                                                viewModel.toggleMuhurtaAlarm(MuhurtaAlarmType.RAHUKAAL_START, enabled)
                                                 Toast.makeText(
                                                     context,
-                                                    if (enabled) "Rahukaal dynamic alarm scheduled" else "Rahukaal alarm canceled",
+                                                    if (enabled) "मुहूर्त सूचना चालू है" else "मुहूर्त सूचना बंद है",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             },
-                                            testTag = "rahukaal_alarm_toggle"
-                                        )
+                                            testTag = "rahukaal_start_alarm_toggle"
+                                         )
+                                     }
+
+                                     Spacer(modifier = Modifier.height(10.dp))
+
+                                     // Rahukaal End Alarm Toggle
+                                     muhurta.rahukaal?.let { rk ->
+                                         val isRkEndAlarmOn = alarms.any { it.type == MuhurtaAlarmType.RAHUKAAL_END && it.isEnabled }
+                                         MuhurtaAlarmRow(
+                                             title = "⏰ राहुकाल समाप्त (Rahukaal End)",
+                                             timeRange = "${rk.start.format(timeFormatter)} - ${rk.end.format(timeFormatter)}",
+                                             description = "राहुकाल समाप्त हो गया है。",
+                                             isAlarmEnabled = isRkEndAlarmOn,
+                                             onToggleAlarm = { enabled ->
+                                                 viewModel.toggleMuhurtaAlarm(MuhurtaAlarmType.RAHUKAAL_END, enabled)
+                                                 Toast.makeText(
+                                                     context,
+                                                     if (enabled) "मुहूर्त सूचना चालू है" else "मुहूर्त सूचना बंद है",
+                                                     Toast.LENGTH_SHORT
+                                                 ).show()
+                                             },
+                                             testTag = "rahukaal_end_alarm_toggle"
+                                         )
                                     }
                                 }
                             }

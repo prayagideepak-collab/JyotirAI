@@ -10,7 +10,17 @@ enum class MuhurtaAlarmType(
     BRAHMA_MUHURTA(
         title = "Brahma Muhurta",
         sanskritName = "ब्रह्म मुहूर्त",
-        defaultDescription = "Auspicious dawn period for meditation, contemplation, and peaceful mental clarity."
+        defaultDescription = "ब्रह्म मुहूर्त का समय शुरू हो रहा है।"
+    ),
+    RAHUKAAL_START(
+        title = "Rahukaal Start",
+        sanskritName = "राहुकाल शुरू",
+        defaultDescription = "राहुकाल शुरू हो रहा है।"
+    ),
+    RAHUKAAL_END(
+        title = "Rahukaal End",
+        sanskritName = "राहुकाल समाप्त",
+        defaultDescription = "राहुकाल समाप्त हो गया है।"
     ),
     RAHUKAAL(
         title = "Rahukaal",
