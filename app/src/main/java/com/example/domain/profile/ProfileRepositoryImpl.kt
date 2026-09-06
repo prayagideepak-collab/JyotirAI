@@ -244,6 +244,7 @@ class ProfileRepositoryImpl(context: Context) : ProfileRepository {
         root.put("tz", profile.birthData.location.timeZoneId ?: profile.birthData.timeZone.id)
         root.put("isVerified", profile.birthData.location.isVerified)
         root.put("source", profile.birthData.location.source)
+        root.put("gender", profile.gender)
         root.put("createdAt", profile.createdAt)
 
         if (profile.birthData.location.altitudeMeters != null) {
@@ -290,6 +291,7 @@ class ProfileRepositoryImpl(context: Context) : ProfileRepository {
         val tzId = root.optString("tz", "Asia/Kolkata").ifBlank { "Asia/Kolkata" }
         val isVerified = root.optBoolean("isVerified", false)
         val source = root.optString("source", "manual")
+        val gender = root.optString("gender", "अन्य")
         val createdAt = root.optLong("createdAt", System.currentTimeMillis())
 
         val birthLocation = BirthLocation(
@@ -307,7 +309,8 @@ class ProfileRepositoryImpl(context: Context) : ProfileRepository {
             date = LocalDate.of(year, month, day),
             time = LocalTime.of(hour, minute, second, nano),
             location = birthLocation,
-            timeZone = ZoneId.of(tzId)
+            timeZone = ZoneId.of(tzId),
+            gender = gender
         )
 
         return UserProfile(

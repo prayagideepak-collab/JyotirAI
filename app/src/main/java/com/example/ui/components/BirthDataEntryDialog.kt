@@ -42,6 +42,7 @@ fun BirthDataEntryDialog(
     onResolveLocation: suspend (String) -> Result<List<BirthLocation>>
 ) {
     var name by remember { mutableStateOf(initialData?.name ?: "User") }
+    var gender by remember { mutableStateOf(initialData?.gender ?: "पुरुष") }
     var year by remember { mutableStateOf(initialData?.date?.year?.toString() ?: "1995") }
     var month by remember { mutableStateOf(initialData?.date?.monthValue?.toString() ?: "8") }
     var day by remember { mutableStateOf(initialData?.date?.dayOfMonth?.toString() ?: "15") }
@@ -109,6 +110,30 @@ fun BirthDataEntryDialog(
                         unfocusedBorderColor = BorderSubtle
                     )
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Gender (लिंग)
+                Text(
+                    text = "लिंग (Gender)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("पुरुष", "महिला", "अन्य").forEach { option ->
+                        val selected = gender == option
+                        FilterChip(
+                            selected = selected,
+                            onClick = { gender = option },
+                            label = { Text(option) },
+                            modifier = Modifier.weight(1f).testTag("chip_gender_$option")
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 

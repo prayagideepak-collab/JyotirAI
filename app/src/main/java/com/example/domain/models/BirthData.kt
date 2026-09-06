@@ -48,5 +48,6 @@ data class BirthData(
     val time: LocalTime,
     val location: BirthLocation,
     val timeZone: ZoneId,
-    val name: String = "User"
+    val name: String = "User",
+    val gender: String = "अन्य"
 )

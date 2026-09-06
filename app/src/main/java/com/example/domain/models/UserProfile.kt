@@ -22,4 +22,5 @@ data class UserProfile(
     val time: LocalTime get() = birthData.time
     val location: BirthLocation get() = birthData.location
     val timeZone: ZoneId get() = birthData.timeZone
+    val gender: String get() = birthData.gender
 }
