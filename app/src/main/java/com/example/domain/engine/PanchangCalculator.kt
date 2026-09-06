@@ -374,8 +374,13 @@ object PanchangCalculator {
     internal fun convertJulianDayToZonedDateTime(jd: Double): ZonedDateTime? {
         return try {
             // Astronomical Julian Day 2440587.5 corresponds exactly to Unix epoch 1970-01-01T00:00:00 UTC.
-            val millisSinceEpoch = ((jd - 2440587.5) * 86_400_000.0).toLong()
-            java.time.Instant.ofEpochMilli(millisSinceEpoch).atZone(ZoneOffset.UTC)
+            val days = jd - 2440587.5
+            val totalSeconds = days * 86400.0
+            val epochSecond = kotlin.math.floor(totalSeconds).toLong()
+            val nanoFraction = kotlin.math.round((totalSeconds - epochSecond) * 1_000_000_000.0).toLong()
+            val normalizedSecond = if (nanoFraction >= 1_000_000_000L) epochSecond + 1 else epochSecond
+            val normalizedNanos = if (nanoFraction >= 1_000_000_000L) 0L else nanoFraction.coerceAtLeast(0L)
+            java.time.Instant.ofEpochSecond(normalizedSecond, normalizedNanos).atZone(ZoneOffset.UTC)
         } catch (e: Exception) {
             null
         }

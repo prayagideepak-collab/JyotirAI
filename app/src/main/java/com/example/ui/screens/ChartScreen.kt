@@ -48,7 +48,6 @@ fun ChartScreen(
     val currentChart by viewModel.currentChart.collectAsStateWithLifecycle()
     val selectedPlanetDetail by viewModel.selectedPlanetDetail.collectAsStateWithLifecycle()
     val dashaTimeline by viewModel.dashaTimeline.collectAsStateWithLifecycle()
-    val advancedInterpretationState by viewModel.advancedInterpretationState.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -193,15 +192,7 @@ fun ChartScreen(
                             modifier = Modifier.padding(bottom = 20.dp)
                         )
 
-                        // 5. Advanced Vedic Intelligence & Interpretation (Phase 12)
-                        VedicInterpretationView(
-                            state = advancedInterpretationState,
-                            speechManager = speechManager,
-                            onRefresh = { viewModel.refreshAdvancedInterpretation() },
-                            modifier = Modifier.padding(bottom = 32.dp)
-                        )
-
-                        // 6. Interactive Modal Planet Detail Dialog
+                        // 5. Interactive Modal Planet Detail Dialog
                         selectedPlanetDetail?.let { planet ->
                             PlanetDetailDialog(
                                 planet = planet,
