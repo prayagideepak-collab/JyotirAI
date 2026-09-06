@@ -780,6 +780,13 @@ class AstrologyViewModel(
     }
 
     fun setPanchangDateTime(dateTime: ZonedDateTime) { loadPanchang(dateTime = dateTime) }
+    fun setPanchangDate(date: LocalDate) {
+        val targetLocation = _currentBirthData.value?.location ?: _savedLocation.value
+        val zone = targetLocation?.timeZoneId?.let { ZoneId.of(it) } ?: ZoneId.of("UTC")
+        val currentZoned = _panchangDateTime.value ?: ZonedDateTime.now(zone)
+        val updated = date.atTime(currentZoned.toLocalTime()).atZone(zone)
+        loadPanchang(dateTime = updated)
+    }
     fun shiftPanchangDays(days: Long) {
         _panchangDateTime.value?.let { current ->
             loadPanchang(dateTime = current.plusDays(days))

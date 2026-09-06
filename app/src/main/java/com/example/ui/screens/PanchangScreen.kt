@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.models.*
+import com.example.domain.panchang.PanchangHindiPresenter
 import com.example.domain.speech.AstrologyHindiSpeechFormatter
 import com.example.domain.speech.JyotirAiSpeechManager
 import com.example.ui.components.AstrologySpeakerButton
@@ -31,6 +34,7 @@ import com.example.ui.components.SpeakerButtonStyle
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.ui.viewmodel.PanchangUiState
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -49,6 +53,24 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
     val dateTime by viewModel.panchangDateTime.collectAsStateWithLifecycle()
     val alarms by viewModel.muhurtaAlarms.collectAsStateWithLifecycle()
 
+    // Date Picker Dialog Launcher
+    val onPickDateClick = {
+        val currentLocal = dateTime?.toLocalDate() ?: LocalDate.now()
+        val dpd = DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val picked = LocalDate.of(year, month + 1, dayOfMonth)
+                val currentZoned = dateTime ?: java.time.ZonedDateTime.now()
+                val updated = picked.atTime(currentZoned.toLocalTime()).atZone(currentZoned.zone)
+                viewModel.setPanchangDateTime(updated)
+            },
+            currentLocal.year,
+            currentLocal.monthValue - 1,
+            currentLocal.dayOfMonth
+        )
+        dpd.show()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -60,7 +82,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             color = AccentAmber
                         )
                         Text(
-                            text = "Vedic Astronomical Almanac",
+                            text = "वैदिक पंचांग • Astronomical Almanac",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -71,9 +93,20 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                     if (panchang != null) {
                         AstrologySpeakerButton(
                             speechManager = speechManager,
-                            hindiTextProvider = { AstrologyHindiSpeechFormatter.formatPanchangSummary(panchang) },
+                            hindiTextProvider = { PanchangHindiPresenter.formatSpeechSummary(panchang) },
                             buttonStyle = SpeakerButtonStyle.ICON_ONLY,
                             testTag = "panchang_tts_speaker_button"
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onPickDateClick,
+                        modifier = Modifier.testTag("panchang_calendar_picker_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "Select Date",
+                            tint = AccentAmber
                         )
                     }
 
@@ -129,11 +162,23 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                         )
                     }
 
-                    Text(
-                        text = dateTime?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)) ?: "Loading...",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable { onPickDateClick() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = dateTime?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)) ?: "Loading...",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Tap to choose date",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentAmber
+                        )
+                    }
 
                     IconButton(
                         onClick = { viewModel.shiftPanchangDays(1) },
@@ -148,17 +193,39 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             when (val state = uiState) {
                 is PanchangUiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = AccentAmber)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = AccentAmber)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Calculating astronomical almanac...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
                 is PanchangUiState.Error -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Panchang Error", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(state.message, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.resetPanchangToNow() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentAmber)
+                                ) {
+                                    Text("Retry Today", color = DeepNavy)
+                                }
+                            }
+                        }
                     }
                 }
                 is PanchangUiState.Success -> {
@@ -189,9 +256,9 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                     imageVector = Icons.Default.LocationOn,
                                     contentDescription = null,
                                     tint = AccentAmber,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         text = panchang.location.placeName,
@@ -199,7 +266,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "${String.format("%.2f", panchang.location.latitude)}°N, ${String.format("%.2f", panchang.location.longitude)}°E • ${panchang.location.timeZoneId ?: "UTC"}",
+                                        text = "${String.format("%.4f", panchang.location.latitude)}°N, ${String.format("%.4f", panchang.location.longitude)}°E • ${panchang.location.timeZoneId ?: "UTC"}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -207,7 +274,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             }
                         }
 
-                        // Core Panchanga Elements
+                        // Core Five Angas (पञ्चाङ्ग)
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -216,35 +283,124 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             colors = CardDefaults.cardColors(containerColor = SurfaceCard)
                         ) {
                             Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "Panchanga Elements (पंचांग)",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = AccentAmber
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "The Five Angas (पञ्चाङ्ग)",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AccentAmber
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (panchang.paksha == Paksha.SHUKLA) AccentAmber.copy(alpha = 0.2f) else DeepNavy
+                                    ) {
+                                        Text(
+                                            text = if (panchang.paksha == Paksha.SHUKLA) "शुक्ल पक्ष (Waxing)" else "कृष्ण पक्ष (Waning)",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = AccentAmber,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(12.dp))
                                 HorizontalDivider(color = BorderSubtle)
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                PanchangRow("Vara (वार)", "${panchang.vara.sanskritName} (${panchang.vara.englishName})")
-                                PanchangRow("Tithi (तिथि)", "${panchang.tithi.name} (${if (panchang.paksha == Paksha.SHUKLA) "शुक्ल पक्ष" else "कृष्ण पक्ष"})")
-                                PanchangRow("Nakshatra (नक्षत्र)", "${panchang.nakshatra.nakshatra.sanskritName} (चरण ${panchang.nakshatra.pada})")
-                                PanchangRow("Yoga (योग)", panchang.yoga.name)
-                                PanchangRow("Karana (करण)", panchang.karana.name)
+                                // 1. Vara
+                                AngaItem(
+                                    label = "1. Vara (वार)",
+                                    sanskrit = panchang.vara.sanskritName,
+                                    hindi = panchang.vara.hindiName,
+                                    detail = "Day of ${panchang.vara.englishName}",
+                                    progress = null,
+                                    timing = null
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 2. Tithi
+                                AngaItem(
+                                    label = "2. Tithi (तिथि)",
+                                    sanskrit = panchang.tithi.name,
+                                    hindi = panchang.tithi.hindiName,
+                                    detail = "Index: ${panchang.tithi.index}/30 • ${(panchang.tithi.remainingPercentage * 100).toInt()}% remaining",
+                                    progress = panchang.tithi.remainingPercentage.toFloat(),
+                                    timing = formatTiming(panchang.tithi.startTime, panchang.tithi.endTime, timeFormatter)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 3. Nakshatra
+                                AngaItem(
+                                    label = "3. Nakshatra (नक्षत्र)",
+                                    sanskrit = panchang.nakshatra.nakshatra.sanskritName,
+                                    hindi = panchang.nakshatra.nakshatra.sanskritName,
+                                    detail = "Pada ${panchang.nakshatra.pada}/4 • Lord: ${panchang.nakshatra.nakshatra.lord}",
+                                    progress = panchang.nakshatra.remainingPercentage.toFloat(),
+                                    timing = formatTiming(panchang.nakshatra.startTime, panchang.nakshatra.endTime, timeFormatter)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 4. Yoga
+                                AngaItem(
+                                    label = "4. Yoga (योग)",
+                                    sanskrit = panchang.yoga.name,
+                                    hindi = panchang.yoga.hindiName,
+                                    detail = "Nitya Yoga ${panchang.yoga.index}/27",
+                                    progress = panchang.yoga.remainingPercentage.toFloat(),
+                                    timing = formatTiming(panchang.yoga.startTime, panchang.yoga.endTime, timeFormatter)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 5. Karana
+                                AngaItem(
+                                    label = "5. Karana (करण)",
+                                    sanskrit = panchang.karana.name,
+                                    hindi = panchang.karana.hindiName,
+                                    detail = if (panchang.karana.isFixed) "Fixed Karana (${panchang.karana.index}/60)" else "Movable Karana (${panchang.karana.index}/60)",
+                                    progress = panchang.karana.remainingPercentage.toFloat(),
+                                    timing = formatTiming(panchang.karana.startTime, panchang.karana.endTime, timeFormatter)
+                                )
 
                                 val lunar = panchang.lunarObservance
-                                if (lunar != null && (lunar.isEkadashi || lunar.isPurnima || lunar.isAmavasya)) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    val obsName = when {
-                                        lunar.isEkadashi -> "Ekadashi (एकादशी)"
-                                        lunar.isPurnima -> "Purnima (पूर्णिमा)"
-                                        lunar.isAmavasya -> "Amavasya (अमावस्या)"
-                                        else -> ""
+                                if (lunar != null && (lunar.isEkadashi || lunar.isPurnima || lunar.isAmavasya || lunar.isPradosh || lunar.isSankranti)) {
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Card(
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = SurfaceElevated)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Celebration, contentDescription = null, tint = AccentAmber, modifier = Modifier.size(20.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Special Lunar Observance",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = AccentAmber
+                                                )
+                                                Text(
+                                                    text = lunar.description ?: when {
+                                                        lunar.isEkadashi -> "Ekadashi Vrata (एकादशी)"
+                                                        lunar.isPurnima -> "Purnima Vrata (पूर्णिमा)"
+                                                        lunar.isAmavasya -> "Amavasya Pitru Tarpan (अमावस्या)"
+                                                        lunar.isPradosh -> "Pradosha Vrata (प्रदोष)"
+                                                        else -> "Sankranti Transition (संक्रांति)"
+                                                    },
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
                                     }
-                                    Text(
-                                        text = "Lunar Observance: $obsName",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = AccentAmber
-                                    )
                                 }
                             }
                         }
@@ -259,7 +415,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                         ) {
                             Column(modifier = Modifier.padding(18.dp)) {
                                 Text(
-                                    text = "Solar & Lunar Timings",
+                                    text = "Solar & Lunar Ephemeris",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = AccentAmber
                                 )
@@ -267,8 +423,8 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 HorizontalDivider(color = BorderSubtle)
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                PanchangRow("Sunrise (सूर्योदय)", panchang.sunrise?.format(timeFormatter) ?: "Unavailable")
-                                PanchangRow("Sunset (सूर्यास्त)", panchang.sunset?.format(timeFormatter) ?: "Unavailable")
+                                PanchangRow("Sunrise (सूर्योदय)", panchang.sunrise?.format(timeFormatter) ?: "Polar Day/Night")
+                                PanchangRow("Sunset (सूर्यास्त)", panchang.sunset?.format(timeFormatter) ?: "Polar Day/Night")
                                 PanchangRow("Sun Sign (सूर्य राशि)", panchang.sunSign?.sanskritName ?: "Unavailable")
                                 PanchangRow("Moon Sign (चन्द्र राशि)", panchang.moonSign?.sanskritName ?: "Unavailable")
                             }
@@ -291,12 +447,12 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                     ) {
                                         Column {
                                             Text(
-                                                text = "Dynamic Muhurta & Alarms",
+                                                text = "Auspicious & Caution Windows",
                                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = AccentAmber
                                             )
                                             Text(
-                                                text = "Daily exact dawn & caution window alerts",
+                                                text = "Exact dawn & caution window alerts",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -333,7 +489,17 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.height(14.dp))
+                                    // Abhijit Muhurta
+                                    muhurta.abhijitMuhurta?.let { am ->
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        MuhurtaInfoDisplayRow(
+                                            title = "Abhijit Muhurta (अभिजित मुहूर्त)",
+                                            timeRange = "${am.start.format(timeFormatter)} - ${am.end.format(timeFormatter)}",
+                                            description = "Midday window for general auspicious activities"
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
 
                                     // Rahukaal Card with Alarm Toggle
                                     muhurta.rahukaal?.let { rk ->
@@ -358,10 +524,121 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             }
                         }
 
+                        // Engine Metadata Badge
+                        Text(
+                            text = "${panchang.metadata.ephemerisEngine} • Ayanamsa: ${panchang.metadata.ayanamsaName} (${String.format("%.4f", panchang.metadata.ayanamsaDegree)}°)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+
                         Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AngaItem(
+    label: String,
+    sanskrit: String,
+    hindi: String,
+    detail: String,
+    progress: Float?,
+    timing: String?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceElevated)
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "$sanskrit ($hindi)",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = AccentAmber
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (timing != null) {
+                Text(
+                    text = timing,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (progress != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                color = AccentAmber,
+                trackColor = SurfaceNavy
+            )
+        }
+    }
+}
+
+@Composable
+private fun MuhurtaInfoDisplayRow(
+    title: String,
+    timeRange: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceElevated)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = timeRange,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = AccentAmber
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -439,5 +716,18 @@ fun PanchangRow(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1.2f)
         )
+    }
+}
+
+private fun formatTiming(
+    start: java.time.ZonedDateTime?,
+    end: java.time.ZonedDateTime?,
+    formatter: DateTimeFormatter
+): String? {
+    return when {
+        start != null && end != null -> "${start.format(formatter)} - ${end.format(formatter)}"
+        end != null -> "Ends: ${end.format(formatter)}"
+        start != null -> "Starts: ${start.format(formatter)}"
+        else -> null
     }
 }

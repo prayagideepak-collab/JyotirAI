@@ -2,14 +2,20 @@ package com.example.domain.engine
 
 import androidx.annotation.VisibleForTesting
 import com.example.domain.models.*
+import com.example.domain.panchang.*
 import de.thmac.swisseph.DblObj
 import de.thmac.swisseph.SweConst
-import de.thmac.swisseph.SwissEph
 import de.thmac.swisseph.SweDate
+import de.thmac.swisseph.SwissEph
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
+/**
+ * Vedic Panchang Calculator.
+ * Maintained for direct access and backward compatibility while backed by Phase 9 Panchang Engine components.
+ */
 object PanchangCalculator {
 
     fun calculatePanchang(
@@ -17,88 +23,65 @@ object PanchangCalculator {
         location: BirthLocation,
         swe: SwissEph
     ): PanchangSnapshot {
-        // 1. Vara (Weekday) from local civil date
-        val vara = getVara(date)
-        
-        val utcDateTime = date.withZoneSameInstant(ZoneOffset.UTC)
-        val hourDecimalUt = utcDateTime.hour +
-                (utcDateTime.minute / 60.0) +
-                (utcDateTime.second / 3600.0) +
-                (utcDateTime.nano / 3_600_000_000_000.0)
-                
-        val sweDate = SweDate(
-            utcDateTime.year,
-            utcDateTime.monthValue,
-            utcDateTime.dayOfMonth,
-            hourDecimalUt
-        )
-        val tjdUt = sweDate.julDay
+        val locContext = LocationContextResolver.resolve(location, fallbackZoneId = date.zone)
+        val targetZoned = date.withZoneSameInstant(locContext.calculationTimeZone)
+        val targetDate = targetZoned.toLocalDate()
 
-        // Ensure Lahiri Ayanamsa is configured for this ThreadLocal SwissEph instance
+        // 1. Vara (Weekday) from local civil date
+        val vara = VaraCalculator.calculate(targetDate)
+
+        val tjdUt = PanchangDateResolver.toJulianDayUt(targetZoned)
+
+        // Ensure Lahiri Ayanamsa
         swe.swe_set_sid_mode(SweConst.SE_SIDM_LAHIRI, 0.0, 0.0)
 
-        // Flags matches the deterministic Vedic engine configuration
-        val flags = SweConst.SEFLG_MOSEPH or SweConst.SEFLG_SIDEREAL or SweConst.SEFLG_SPEED
-        
-        val sunRes = DoubleArray(6)
-        val sunErr = StringBuffer()
-        val sunFlag = swe.swe_calc_ut(tjdUt, SweConst.SE_SUN, flags, sunRes, sunErr)
-        if (sunFlag < 0) {
-            throw AppError.CalculationError("Error calculating Sun position: $sunErr")
-        }
-        val sunLon = normalizeDegree(sunRes[0])
-        if (sunLon.isNaN() || sunLon.isInfinite()) {
-            throw AppError.CalculationError("Sun longitude is invalid: $sunLon")
-        }
-
-        val moonRes = DoubleArray(6)
-        val moonErr = StringBuffer()
-        val moonFlag = swe.swe_calc_ut(tjdUt, SweConst.SE_MOON, flags, moonRes, moonErr)
-        if (moonFlag < 0) {
-            throw AppError.CalculationError("Error calculating Moon position: $moonErr")
-        }
-        val moonLon = normalizeDegree(moonRes[0])
-        if (moonLon.isNaN() || moonLon.isInfinite()) {
-            throw AppError.CalculationError("Moon longitude is invalid: $moonLon")
-        }
+        // Ephemeris calculation
+        val sunContext = SolarCalculator.calculateSun(tjdUt, swe)
+        val moonContext = LunarCalculator.calculateMoon(tjdUt, sunContext.longitude, swe)
 
         // 2. Tithi
-        val tithi = calculateTithi(sunLon, moonLon)
-        
-        // 3. Paksha
+        val tithi = TithiCalculator.calculate(
+            sunLongitude = sunContext.longitude,
+            moonLongitude = moonContext.longitude,
+            tjdUt = tjdUt,
+            zoneId = locContext.calculationTimeZone,
+            swe = swe
+        )
         val paksha = tithi.paksha
 
-        // 4. Nakshatra
-        val nakshatraContext = calculateNakshatra(moonLon)
-        
-        // 5. Yoga
-        val yoga = calculateYoga(sunLon, moonLon)
-
-        // 6. Karana
-        val karana = calculateKarana(sunLon, moonLon)
-
-        // 7. Sunrise and Sunset for LOCAL CIVIL DATE
-        // Find local midnight (start of the day)
-        val localMidnight = date.toLocalDate().atStartOfDay(date.zone)
-        val localMidnightUtc = localMidnight.withZoneSameInstant(ZoneOffset.UTC)
-        val localMidnightHourDecimal = localMidnightUtc.hour +
-                (localMidnightUtc.minute / 60.0) +
-                (localMidnightUtc.second / 3600.0)
-        val localMidnightSweDate = SweDate(
-            localMidnightUtc.year,
-            localMidnightUtc.monthValue,
-            localMidnightUtc.dayOfMonth,
-            localMidnightHourDecimal
+        // 3. Nakshatra
+        val nakshatraContext = NakshatraCalculator.calculate(
+            moonLongitude = moonContext.longitude,
+            tjdUt = tjdUt,
+            zoneId = locContext.calculationTimeZone,
+            swe = swe
         )
-        val tjdUtMidnight = localMidnightSweDate.julDay
 
-        val sunrise = calculateRiseSet(tjdUtMidnight, location, swe, SweConst.SE_CALC_RISE, date)
-        val sunset = calculateRiseSet(tjdUtMidnight, location, swe, SweConst.SE_CALC_SET, date)
+        // 4. Yoga
+        val yoga = PanchangYogaCalculator.calculate(
+            sunLongitude = sunContext.longitude,
+            moonLongitude = moonContext.longitude,
+            tjdUt = tjdUt,
+            zoneId = locContext.calculationTimeZone,
+            swe = swe
+        )
 
-        val moonSign = Rashi.fromLongitude(moonLon)
-        val sunSign = Rashi.fromLongitude(sunLon)
+        // 5. Karana
+        val karana = KaranaCalculator.calculate(
+            sunLongitude = sunContext.longitude,
+            moonLongitude = moonContext.longitude,
+            tjdUt = tjdUt,
+            zoneId = locContext.calculationTimeZone,
+            swe = swe
+        )
+
+        // 6. Sunrise and Sunset for LOCAL CIVIL DATE
+        val riseSet = SunriseSunsetCalculator.calculate(targetDate, locContext, swe)
+        val sunrise = riseSet.sunrise
+        val sunset = riseSet.sunset
 
         val ayanamsa = swe.swe_get_ayanamsa_ut(tjdUt)
+        val utcDateTime = targetZoned.withZoneSameInstant(ZoneOffset.UTC)
 
         val metadata = CalculationMetadata(
             ephemerisEngine = "Swiss Ephemeris (Moshier Sidereal)",
@@ -114,6 +97,8 @@ object PanchangCalculator {
             isEkadashi = tithi.index == 11 || tithi.index == 26,
             isPurnima = tithi.index == 15,
             isAmavasya = tithi.index == 30,
+            isPradosh = tithi.index == 13 || tithi.index == 28,
+            isSankranti = sunContext.degreeInSign < 1.0,
             description = null
         )
 
@@ -128,8 +113,8 @@ object PanchangCalculator {
             karana = karana,
             sunrise = sunrise,
             sunset = sunset,
-            moonSign = moonSign,
-            sunSign = sunSign,
+            moonSign = moonContext.sign,
+            sunSign = sunContext.sign,
             muhurta = muhurta,
             lunarObservance = lunarObservance,
             metadata = metadata
@@ -145,128 +130,29 @@ object PanchangCalculator {
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun getVara(date: ZonedDateTime): Vara {
-        return when (date.dayOfWeek.value) {
-            1 -> Vara.SOMAVARA // Monday
-            2 -> Vara.MANGALAVARA
-            3 -> Vara.BUDHAVARA
-            4 -> Vara.GURUVARA
-            5 -> Vara.SHUKRAVARA
-            6 -> Vara.SHANIVARA
-            7 -> Vara.RAVIVARA // Sunday
-            else -> Vara.RAVIVARA
-        }
+        return VaraCalculator.calculate(date)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun calculateTithi(sunLon: Double, moonLon: Double): Tithi {
-        val elongation = normalizeDegree(moonLon - sunLon)
-        val tithiIndex = (elongation / 12.0).toInt() + 1 // 1 to 30
-        
-        val paksha = if (tithiIndex <= 15) Paksha.SHUKLA else Paksha.KRISHNA
-        val remainingPct = 1.0 - ((elongation % 12.0) / 12.0)
-
-        val tithiName = when (tithiIndex) {
-            1, 16 -> "Pratipada"
-            2, 17 -> "Dvitiya"
-            3, 18 -> "Tritiya"
-            4, 19 -> "Chaturthi"
-            5, 20 -> "Panchami"
-            6, 21 -> "Shashthi"
-            7, 22 -> "Saptami"
-            8, 23 -> "Ashtami"
-            9, 24 -> "Navami"
-            10, 25 -> "Dashami"
-            11, 26 -> "Ekadashi"
-            12, 27 -> "Dvadashi"
-            13, 28 -> "Trayodashi"
-            14, 29 -> "Chaturdashi"
-            15 -> "Purnima"
-            30 -> "Amavasya"
-            else -> throw AppError.CalculationError("Invalid Tithi index: $tithiIndex")
-        }
-
-        return Tithi(tithiIndex, tithiName, paksha, remainingPct.coerceIn(0.0, 1.0))
+        return TithiCalculator.calculate(sunLon, moonLon)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun calculateNakshatra(moonLon: Double): NakshatraContext {
-        val pair = Nakshatra.fromLongitude(moonLon)
-        val nakshatra = pair.first
-        val pada = pair.second
-        
-        // Mathematically correct calculation relative to current Nakshatra boundaries
-        val nakshatraStartDegree = nakshatra.index * Nakshatra.SPAN_DEGREES
-        var degreeWithinNakshatra = moonLon - nakshatraStartDegree
-        if (degreeWithinNakshatra < 0) degreeWithinNakshatra += 360.0
-        
-        val remainingPct = 1.0 - (degreeWithinNakshatra / Nakshatra.SPAN_DEGREES)
-
-        return NakshatraContext(nakshatra, pada, remainingPct.coerceIn(0.0, 1.0))
+        return NakshatraCalculator.calculate(moonLon)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun calculateYoga(sunLon: Double, moonLon: Double): NityaYoga {
-        val yogaLon = normalizeDegree(sunLon + moonLon)
-        val span = 360.0 / 27.0
-        val yogaIndex = (yogaLon / span).toInt() + 1 // 1 to 27
-        
-        val remainingPct = 1.0 - ((yogaLon % span) / span)
-
-        val yogaNames = listOf(
-            "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
-            "Atiganda", "Sukarma", "Dhriti", "Shula", "Ganda",
-            "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
-            "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
-            "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma",
-            "Indra", "Vaidhriti"
-        )
-        
-        val name = yogaNames.getOrNull(yogaIndex - 1) ?: throw AppError.CalculationError("Invalid Yoga index: $yogaIndex")
-        
-        return NityaYoga(yogaIndex, name, remainingPct.coerceIn(0.0, 1.0))
+        return PanchangYogaCalculator.calculate(sunLon, moonLon)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun calculateKarana(sunLon: Double, moonLon: Double): Karana {
-        val elongation = normalizeDegree(moonLon - sunLon)
-        val karanaIndex = (elongation / 6.0).toInt() + 1 // 1 to 60
-        val remainingPct = 1.0 - ((elongation % 6.0) / 6.0)
-
-        // 60 Karanas in a lunar month
-        // 1st is Kimstughna (Fixed)
-        // 2nd to 57th are Movable (7 repeating: Bava, Balava, Kaulava, Taitila, Gara, Vanija, Vishti)
-        // 58th is Shakuni (Fixed)
-        // 59th is Chatushpada (Fixed)
-        // 60th is Naga (Fixed)
-        val name: String
-        val isFixed: Boolean
-
-        when (karanaIndex) {
-            1 -> { name = "Kimstughna"; isFixed = true }
-            58 -> { name = "Shakuni"; isFixed = true }
-            59 -> { name = "Chatushpada"; isFixed = true }
-            60 -> { name = "Naga"; isFixed = true }
-            in 2..57 -> {
-                isFixed = false
-                val movableIndex = (karanaIndex - 2) % 7
-                name = when (movableIndex) {
-                    0 -> "Bava"
-                    1 -> "Balava"
-                    2 -> "Kaulava"
-                    3 -> "Taitila"
-                    4 -> "Gara"
-                    5 -> "Vanija"
-                    6 -> "Vishti"
-                    else -> throw AppError.CalculationError("Invalid Karana movable index: $movableIndex")
-                }
-            }
-            else -> throw AppError.CalculationError("Invalid Karana index: $karanaIndex")
-        }
-
-        return Karana(karanaIndex, name, isFixed, remainingPct.coerceIn(0.0, 1.0))
+        return KaranaCalculator.calculate(sunLon, moonLon)
     }
 
-    
     private fun calculateMuhurta(
         sunrise: ZonedDateTime?,
         sunset: ZonedDateTime?,
@@ -275,10 +161,10 @@ object PanchangCalculator {
         if (sunrise == null || sunset == null || !sunrise.isBefore(sunset)) {
             return null
         }
-        
+
         val daytimeMillis = java.time.Duration.between(sunrise, sunset).toMillis()
         val partMillis = daytimeMillis / 8
-        
+
         val rahukaalIndex = when (vara) {
             Vara.SOMAVARA -> 1 // 2nd part
             Vara.SHANIVARA -> 2 // 3rd part
@@ -288,19 +174,19 @@ object PanchangCalculator {
             Vara.MANGALAVARA -> 6 // 7th part
             Vara.RAVIVARA -> 7 // 8th part
         }
-        
-        val rahuStart = sunrise.plusNanos((partMillis * rahukaalIndex * 1_000_000).toLong())
-        val rahuEnd = rahuStart.plusNanos((partMillis * 1_000_000).toLong())
-        
+
+        val rahuStart = sunrise.plusNanos(partMillis * rahukaalIndex * 1_000_000L)
+        val rahuEnd = rahuStart.plusNanos(partMillis * 1_000_000L)
+
         val rahukaal = TimeInterval(
             start = rahuStart,
             end = rahuEnd,
             name = "Rahukaal"
         )
-        
+
         val brahmaStart = sunrise.minusMinutes(96)
         val brahmaEnd = sunrise.minusMinutes(48)
-        
+
         val brahmaMuhurta = TimeInterval(
             start = brahmaStart,
             end = brahmaEnd,
@@ -308,15 +194,15 @@ object PanchangCalculator {
         )
 
         val abhijitPartMillis = daytimeMillis / 15
-        val abhijitStart = sunrise.plusNanos((abhijitPartMillis * 7 * 1_000_000L))
-        val abhijitEnd = sunrise.plusNanos((abhijitPartMillis * 8 * 1_000_000L))
+        val abhijitStart = sunrise.plusNanos(abhijitPartMillis * 7 * 1_000_000L)
+        val abhijitEnd = sunrise.plusNanos(abhijitPartMillis * 8 * 1_000_000L)
 
         val abhijitMuhurta = TimeInterval(
             start = abhijitStart,
             end = abhijitEnd,
             name = "Abhijit Muhurta"
         )
-        
+
         return MuhurtaInfo(
             rahukaal = rahukaal,
             brahmaMuhurta = brahmaMuhurta,
@@ -325,64 +211,8 @@ object PanchangCalculator {
         )
     }
 
-    private fun calculateRiseSet(
-        tjdUtMidnight: Double,
-        location: BirthLocation,
-        swe: SwissEph,
-        rsmi: Int, // SweConst.SE_CALC_RISE or SET
-        originalDate: ZonedDateTime
-    ): ZonedDateTime? {
-        val geopos = doubleArrayOf(location.longitude, location.latitude, location.altitudeMeters ?: 0.0)
-        val flags = SweConst.SEFLG_MOSEPH
-        val targetDate = originalDate.toLocalDate()
-        
-        // Start search slightly before local midnight to avoid boundary misses
-        var currentTjd = tjdUtMidnight - 0.5
-        var iterations = 0
-        
-        while (iterations < 5) { // Bounded search
-            val tret = DblObj()
-            val serr = StringBuffer()
-            
-            val res = swe.swe_rise_trans(currentTjd, SweConst.SE_SUN, null, flags, rsmi, geopos, 1013.25, 15.0, tret, serr)
-            
-            if (res == -1 || res == -2 || res < 0) {
-                return null // Event not found (e.g., polar region) or error
-            }
-            
-            val eventJulianDay = tret.`val`
-            val eventUtc = convertJulianDayToZonedDateTime(eventJulianDay) ?: return null
-            val eventLocal = eventUtc.withZoneSameInstant(originalDate.zone)
-            val eventLocalDate = eventLocal.toLocalDate()
-            
-            if (eventLocalDate == targetDate) {
-                return eventLocal
-            } else if (eventLocalDate.isAfter(targetDate)) {
-                // Passed the target date, event does not happen on this day
-                return null
-            }
-            
-            // Advance search time just past this event
-            currentTjd = eventJulianDay + 0.01
-            iterations++
-        }
-        
-        return null
-    }
-    
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun convertJulianDayToZonedDateTime(jd: Double): ZonedDateTime? {
-        return try {
-            // Astronomical Julian Day 2440587.5 corresponds exactly to Unix epoch 1970-01-01T00:00:00 UTC.
-            val days = jd - 2440587.5
-            val totalSeconds = days * 86400.0
-            val epochSecond = kotlin.math.floor(totalSeconds).toLong()
-            val nanoFraction = kotlin.math.round((totalSeconds - epochSecond) * 1_000_000_000.0).toLong()
-            val normalizedSecond = if (nanoFraction >= 1_000_000_000L) epochSecond + 1 else epochSecond
-            val normalizedNanos = if (nanoFraction >= 1_000_000_000L) 0L else nanoFraction.coerceAtLeast(0L)
-            java.time.Instant.ofEpochSecond(normalizedSecond, normalizedNanos).atZone(ZoneOffset.UTC)
-        } catch (e: Exception) {
-            null
-        }
+        return PanchangDateResolver.fromJulianDayUt(jd, ZoneOffset.UTC)
     }
 }
