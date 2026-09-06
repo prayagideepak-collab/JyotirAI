@@ -47,6 +47,14 @@ sealed interface YogaDoshaUiState {
     data class Error(val message: String) : YogaDoshaUiState
 }
 
+sealed interface PredictionUiState {
+    data object Empty : PredictionUiState
+    data object Loading : PredictionUiState
+    data class Success(val snapshot: PredictionSnapshot) : PredictionUiState
+    data class InsufficientData(val reason: String) : PredictionUiState
+    data class Error(val message: String) : PredictionUiState
+}
+
 sealed interface DashaUiState {
     data object Empty : DashaUiState
     data object Calculating : DashaUiState
@@ -161,6 +169,11 @@ class AstrologyViewModel(
     private val _yogaDoshaState = MutableStateFlow<YogaDoshaUiState>(YogaDoshaUiState.Empty)
     val yogaDoshaState: StateFlow<YogaDoshaUiState> = _yogaDoshaState.asStateFlow()
     private val yogaDoshaCache = java.util.concurrent.ConcurrentHashMap<String, YogaDoshaSnapshot>()
+
+    // Prediction Engine State (Phase 7)
+    private val _predictionState = MutableStateFlow<PredictionUiState>(PredictionUiState.Empty)
+    val predictionState: StateFlow<PredictionUiState> = _predictionState.asStateFlow()
+    private val predictionCache = java.util.concurrent.ConcurrentHashMap<String, PredictionSnapshot>()
 
     // Advanced Vedic Intelligence & Interpretation State (Phase 12 - Frozen)
     private val _advancedInterpretationState = MutableStateFlow<AdvancedInterpretationUiState>(AdvancedInterpretationUiState.Empty)
@@ -439,6 +452,7 @@ class AstrologyViewModel(
                     loadDashaTimeline(birthData)
                     loadTransits(location = birthData.location, natalProfile = profile)
                     loadYogaDoshaAnalysis(profile)
+                    loadPredictions(profile)
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
@@ -530,6 +544,7 @@ class AstrologyViewModel(
         _dashaUiState.value = DashaUiState.Empty
         _expandedMahadashaPlanet.value = null
         _yogaDoshaState.value = YogaDoshaUiState.Empty
+        _predictionState.value = PredictionUiState.Empty
         _advancedInterpretationState.value = AdvancedInterpretationUiState.Empty
         loadTransits(natalProfile = null)
     }
@@ -573,6 +588,49 @@ class AstrologyViewModel(
             } catch (e: Exception) {
                 _yogaDoshaState.value = YogaDoshaUiState.Error(
                     e.message ?: "Failed to calculate Yoga and Dosha analysis."
+                )
+            }
+        }
+    }
+
+    /**
+     * Calculates deterministic multi-factor Vedic predictions across life topics (Phase 7).
+     */
+    fun loadPredictions(profile: AstrologyProfile, targetDate: LocalDate = LocalDate.now()) {
+        val validation = com.example.domain.engine.prediction.PredictionResultValidator.validateProfile(profile)
+        if (!validation.isValid) {
+            _predictionState.value = PredictionUiState.InsufficientData(validation.reason)
+            return
+        }
+
+        val cacheKey = "${profile.birthData.name}_${profile.birthData.date}_${profile.birthData.time}_${profile.birthData.location.latitude}_${profile.birthData.location.longitude}_${profile.birthData.timeZone.id}_${targetDate}"
+        predictionCache[cacheKey]?.let { cached ->
+            _predictionState.value = PredictionUiState.Success(cached)
+            return
+        }
+
+        _predictionState.value = PredictionUiState.Loading
+        viewModelScope.launch {
+            try {
+                val dashaTimeline = _dashaTimeline.value
+                val transits = (_transitUiState.value as? TransitUiState.Success)?.snapshot?.positions?.map {
+                    Transit(planet = it.planet, currentSign = it.sign, degree = it.degreeInSign)
+                }
+                val yogaDoshaSnapshot = (_yogaDoshaState.value as? YogaDoshaUiState.Success)?.snapshot
+                    ?: com.example.domain.engine.YogaDoshaCalculator.calculate(profile)
+
+                val snapshot = com.example.domain.engine.PredictionCalculator.calculate(
+                    profile = profile,
+                    dashaTimeline = dashaTimeline,
+                    transits = transits,
+                    yogaDoshaSnapshot = yogaDoshaSnapshot,
+                    targetDate = targetDate
+                )
+                predictionCache[cacheKey] = snapshot
+                _predictionState.value = PredictionUiState.Success(snapshot)
+            } catch (e: Exception) {
+                _predictionState.value = PredictionUiState.Error(
+                    e.message ?: "Failed to calculate prediction context."
                 )
             }
         }
