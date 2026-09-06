@@ -33,10 +33,4 @@ fun PlaceholderScreen(title: String, description: String) {
 }
 
 @Composable
-fun CompatibilityScreen() = PlaceholderScreen("Kundali Milan", "Phase 8 feature. Ashta Kuta matching and deeper relationship insights.")
-
-@Composable
-fun NumerologyScreen() = PlaceholderScreen("Numerology", "Phase 10 feature. Chaldean and Pythagorean models derived from birth details.")
-
-@Composable
 fun SettingsScreen() = PlaceholderScreen("Settings", "App preferences, Ayanamsa selection, and language configuration.")

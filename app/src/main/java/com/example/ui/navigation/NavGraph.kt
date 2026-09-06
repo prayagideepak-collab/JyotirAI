@@ -37,6 +37,9 @@ fun JyotishNavGraph(
             HomeScreen(
                 viewModel = astrologyViewModel,
                 onNavigateToRashifal = { navController.navigate(Screen.Predictions.route) },
+                onNavigateToCompatibility = { navController.navigate(Screen.Compatibility.route) },
+                onNavigateToNumerology = { navController.navigate(Screen.Numerology.route) },
+                onNavigateToAssistant = { navController.navigate(Screen.Assistant.route) },
                 onNavigateToPalmReading = { navController.navigate(Screen.PalmReading.route) },
                 onNavigateToFaceReading = { navController.navigate(Screen.FaceReading.route) }
             )
@@ -48,7 +51,12 @@ fun JyotishNavGraph(
                 onNavigateToHome = { navController.navigate(Screen.Home.route) }
             )
         }
-        composable(Screen.Assistant.route) { AssistantScreen() }
+        composable(Screen.Assistant.route) {
+            AssistantScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+            )
+        }
         composable(Screen.Predictions.route) {
             DailyRashifalScreen(
                 viewModel = astrologyViewModel,
@@ -63,8 +71,13 @@ fun JyotishNavGraph(
         }
         composable(Screen.Panchang.route) { PanchangScreen(viewModel = astrologyViewModel) }
         composable(Screen.Muhurta.route) { MuhurtaScreen(viewModel = astrologyViewModel) }
-        composable(Screen.Compatibility.route) { CompatibilityScreen() }
-        composable(Screen.Numerology.route) { NumerologyScreen() }
+        composable(Screen.Compatibility.route) { CompatibilityScreen(viewModel = astrologyViewModel) }
+        composable(Screen.Numerology.route) {
+            NumerologyScreen(
+                viewModel = astrologyViewModel,
+                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+            )
+        }
         composable(Screen.PalmReading.route) {
             PalmReadingScreen(
                 coordinator = cameraCoordinator,

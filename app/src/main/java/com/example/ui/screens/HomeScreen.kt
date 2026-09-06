@@ -39,6 +39,9 @@ import kotlin.coroutines.suspendCoroutine
 fun HomeScreen(
     viewModel: AstrologyViewModel,
     onNavigateToRashifal: () -> Unit = {},
+    onNavigateToCompatibility: () -> Unit = {},
+    onNavigateToNumerology: () -> Unit = {},
+    onNavigateToAssistant: () -> Unit = {},
     onNavigateToPalmReading: () -> Unit = {},
     onNavigateToFaceReading: () -> Unit = {}
 ) {
@@ -264,6 +267,24 @@ fun HomeScreen(
                 HomeSamudrikaSection(
                     onOpenPalmReading = onNavigateToPalmReading,
                     onOpenFaceReading = onNavigateToFaceReading
+                )
+
+                // Dedicated Vedic Compatibility (Kundali Milan) Entry Section
+                Spacer(modifier = Modifier.height(16.dp))
+                HomeCompatibilitySection(
+                    onOpenCompatibility = onNavigateToCompatibility
+                )
+
+                // Dedicated Numerology (अंकशास्त्र) Entry Section (Phase 12)
+                Spacer(modifier = Modifier.height(16.dp))
+                HomeNumerologySection(
+                    onOpenNumerology = onNavigateToNumerology
+                )
+
+                // Dedicated AI Astrologer (AI ज्योतिषी) Entry Section (Phase 12)
+                Spacer(modifier = Modifier.height(16.dp))
+                HomeAIAstrologerSection(
+                    onOpenAIAstrologer = onNavigateToAssistant
                 )
             }
 
@@ -953,4 +974,260 @@ fun HomeSamudrikaSection(
         }
     }
 }
+
+@Composable
+fun HomeCompatibilitySection(
+    onOpenCompatibility: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
+            .testTag("home_compatibility_card"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "Kundali Milan (गुण मिलान)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = AccentAmber.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = "Phase 11",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentAmber,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Classical 36 Guna Ashtakoota matching, Manglik Dosha mutual neutralization, and Hindi relationship insights between any two profiles.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = onOpenCompatibility,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_compatibility_button"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentAmber,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(imageVector = Icons.Default.FavoriteBorder, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Check Compatibility (कुंडली मिलान)", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeNumerologySection(
+    onOpenNumerology: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
+            .testTag("home_numerology_card"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tag,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "अंकशास्त्र (Numerology)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = AccentAmber.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = "Phase 12",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentAmber,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "मूलांक, भाग्यांक, नामांक गणना (Chaldean व Pythagorean पद्धति), स्वामी ग्रह, अनुकूल अंक, शुभ दिन एवं सात्विक वैदिक उपाय।",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = onOpenNumerology,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_numerology_button"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SurfaceElevated,
+                    contentColor = TextPrimary
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Pin, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("View Numerology Analysis (अंकशास्त्र देखें)", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeAIAstrologerSection(
+    onOpenAIAstrologer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceCard)
+            .border(1.dp, AccentAmber.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+            .testTag("home_ai_astrologer_card"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "AI ज्योतिषी (AI Astrologer)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = AccentEmerald.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = "Zero Hallucination",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentEmerald,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "करियर, विवाह, दशा फल, ग्रह गोचर और पंचांग से संबंधित किसी भी प्रश्न का गणितीय वैदिक सूत्रों पर आधारित सहज हिंदी समाधान।",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = onOpenAIAstrologer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_ai_astrologer_button"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentAmber,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ask AI Astrologer (ज्योतिषी से पूछें)", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 

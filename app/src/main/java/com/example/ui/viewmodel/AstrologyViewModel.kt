@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.domain.alarm.MuhurtaAlarmRepository
 import com.example.domain.alarm.MuhurtaAlarmScheduler
+import com.example.domain.compatibility.*
 import com.example.domain.engine.AstrologyEngine
 import com.example.domain.interpretation.*
 import com.example.domain.location.LocationRepository
@@ -96,6 +97,27 @@ sealed interface PeriodicPredictionUiState {
     data class Error(val message: String) : PeriodicPredictionUiState
 }
 
+sealed interface CompatibilityUiState {
+    data object SelectProfiles : CompatibilityUiState
+    data object Loading : CompatibilityUiState
+    data class Success(val result: CompatibilityResult) : CompatibilityUiState
+    data class Error(val message: String) : CompatibilityUiState
+}
+
+sealed interface NumerologyUiState {
+    data object Empty : NumerologyUiState
+    data object Calculating : NumerologyUiState
+    data class Success(val result: com.example.domain.numerology.NumerologyResult) : NumerologyUiState
+    data class Error(val message: String) : NumerologyUiState
+}
+
+sealed interface AIAstrologerUiState {
+    data object Idle : AIAstrologerUiState
+    data object Thinking : AIAstrologerUiState
+    data class Success(val result: com.example.domain.ai.AIAstrologerResult) : AIAstrologerUiState
+    data class Error(val message: String) : AIAstrologerUiState
+}
+
 class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine,
     private val locationResolver: LocationResolver,
@@ -108,6 +130,20 @@ class AstrologyViewModel(
 
     private val dailyPredictionEngine: DailyPredictionEngine = DailyPredictionEngineImpl(profileRepository, astrologyEngine)
     private val predictionScheduleEngine: PredictionScheduleEngine = PredictionScheduleEngineImpl.create(profileRepository, astrologyEngine)
+    private val compatibilityEngine: CompatibilityEngine = CompatibilityEngineImpl(astrologyEngine, profileRepository)
+
+    // Phase 11 — Compatibility Engine State
+    private val _compatibilityUiState = MutableStateFlow<CompatibilityUiState>(CompatibilityUiState.SelectProfiles)
+    val compatibilityUiState: StateFlow<CompatibilityUiState> = _compatibilityUiState.asStateFlow()
+
+    private val _selectedProfileA = MutableStateFlow<UserProfile?>(null)
+    val selectedProfileA: StateFlow<UserProfile?> = _selectedProfileA.asStateFlow()
+
+    private val _selectedProfileB = MutableStateFlow<UserProfile?>(null)
+    val selectedProfileB: StateFlow<UserProfile?> = _selectedProfileB.asStateFlow()
+
+    private val _compatibilityMode = MutableStateFlow(CompatibilityMode.MARRIAGE)
+    val compatibilityMode: StateFlow<CompatibilityMode> = _compatibilityMode.asStateFlow()
 
     // Muhurta Engine State (Phase 10)
     private val _muhurtaUiState = MutableStateFlow<MuhurtaUiState>(MuhurtaUiState.Loading)
@@ -224,6 +260,22 @@ class AstrologyViewModel(
     // Advanced Vedic Intelligence & Interpretation State (Phase 12 - Frozen)
     private val _advancedInterpretationState = MutableStateFlow<AdvancedInterpretationUiState>(AdvancedInterpretationUiState.Empty)
     val advancedInterpretationState: StateFlow<AdvancedInterpretationUiState> = _advancedInterpretationState.asStateFlow()
+
+    // Phase 12 — Numerology Engine State & Implementation
+    private val numerologyEngine: com.example.domain.numerology.NumerologyEngine = com.example.domain.numerology.NumerologyEngineImpl()
+    private val _numerologyUiState = MutableStateFlow<NumerologyUiState>(NumerologyUiState.Empty)
+    val numerologyUiState: StateFlow<NumerologyUiState> = _numerologyUiState.asStateFlow()
+
+    private val _numerologyMethodology = MutableStateFlow(com.example.domain.numerology.NumerologyMethodology.CHALDEAN)
+    val numerologyMethodology: StateFlow<com.example.domain.numerology.NumerologyMethodology> = _numerologyMethodology.asStateFlow()
+
+    // Phase 12 — AI Astrologer State & Implementation
+    private val aiAstrologerService: com.example.domain.ai.AIAstrologerService = com.example.domain.ai.AIAstrologerServiceImpl(numerologyEngine)
+    private val _aiAstrologerUiState = MutableStateFlow<AIAstrologerUiState>(AIAstrologerUiState.Idle)
+    val aiAstrologerUiState: StateFlow<AIAstrologerUiState> = _aiAstrologerUiState.asStateFlow()
+
+    private val _aiAstrologerHistory = MutableStateFlow<List<com.example.domain.ai.AIAstrologerResult>>(emptyList())
+    val aiAstrologerHistory: StateFlow<List<com.example.domain.ai.AIAstrologerResult>> = _aiAstrologerHistory.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -384,6 +436,9 @@ class AstrologyViewModel(
     fun deleteProfile(profileId: String) {
         viewModelScope.launch {
             predictionScheduleEngine.clearCache(profileId)
+            compatibilityEngine.invalidateProfile(profileId)
+            if (_selectedProfileA.value?.id == profileId) _selectedProfileA.value = null
+            if (_selectedProfileB.value?.id == profileId) _selectedProfileB.value = null
             profileRepository.deleteProfile(profileId)
 
             val remainingProfiles = profileRepository.getAllProfiles()
@@ -1020,5 +1075,173 @@ class AstrologyViewModel(
 
     fun toggleMuhurtaPersonalization(enabled: Boolean) {
         loadMuhurta(personalized = enabled)
+    }
+
+    // ==========================================
+    // Phase 11 — Compatibility Engine Functions
+    // ==========================================
+
+    fun selectCompatibilityProfileA(profile: UserProfile?) {
+        _selectedProfileA.value = profile
+        if (_compatibilityUiState.value is CompatibilityUiState.Success || _compatibilityUiState.value is CompatibilityUiState.Error) {
+            _compatibilityUiState.value = CompatibilityUiState.SelectProfiles
+        }
+    }
+
+    fun selectCompatibilityProfileB(profile: UserProfile?) {
+        _selectedProfileB.value = profile
+        if (_compatibilityUiState.value is CompatibilityUiState.Success || _compatibilityUiState.value is CompatibilityUiState.Error) {
+            _compatibilityUiState.value = CompatibilityUiState.SelectProfiles
+        }
+    }
+
+    fun setCompatibilityMode(mode: CompatibilityMode) {
+        _compatibilityMode.value = mode
+        if (_compatibilityUiState.value is CompatibilityUiState.Success) {
+            calculateCompatibility()
+        }
+    }
+
+    fun swapCompatibilityProfiles() {
+        val temp = _selectedProfileA.value
+        _selectedProfileA.value = _selectedProfileB.value
+        _selectedProfileB.value = temp
+        if (_compatibilityUiState.value is CompatibilityUiState.Success) {
+            calculateCompatibility()
+        }
+    }
+
+    fun calculateCompatibility() {
+        val pA = _selectedProfileA.value
+        val pB = _selectedProfileB.value
+        val mode = _compatibilityMode.value
+
+        if (pA == null || pB == null) {
+            _compatibilityUiState.value = CompatibilityUiState.Error("Please select both Profile A and Profile B for compatibility calculation.")
+            return
+        }
+
+        if (pA.id.equals(pB.id, ignoreCase = true)) {
+            _compatibilityUiState.value = CompatibilityUiState.Error("Please select two different profiles for compatibility matching.")
+            return
+        }
+
+        _compatibilityUiState.value = CompatibilityUiState.Loading
+        viewModelScope.launch {
+            val result = compatibilityEngine.evaluateCompatibility(pA, pB, mode)
+            result.fold(
+                onSuccess = { res ->
+                    _compatibilityUiState.value = CompatibilityUiState.Success(res)
+                },
+                onFailure = { err ->
+                    _compatibilityUiState.value = CompatibilityUiState.Error(
+                        err.message ?: "Failed to calculate compatibility."
+                    )
+                }
+            )
+        }
+    }
+
+    fun resetCompatibility() {
+        _compatibilityUiState.value = CompatibilityUiState.SelectProfiles
+    }
+
+    // ==========================================
+    // Phase 12 — Numerology Engine Functions
+    // ==========================================
+
+    fun loadNumerology(
+        profile: UserProfile? = null,
+        methodology: com.example.domain.numerology.NumerologyMethodology? = null
+    ) {
+        val targetProfile = profile ?: _activeUserProfile.value ?: _defaultUserProfile.value
+        val method = methodology ?: _numerologyMethodology.value
+
+        if (targetProfile == null) {
+            _numerologyUiState.value = NumerologyUiState.Error("कृपया अंकशास्त्र गणना हेतु जन्म प्रोफाइल दर्ज अथवा चयन करें।")
+            return
+        }
+
+        _numerologyUiState.value = NumerologyUiState.Calculating
+        viewModelScope.launch {
+            try {
+                val result = numerologyEngine.calculateForProfile(targetProfile, method)
+                _numerologyUiState.value = NumerologyUiState.Success(result)
+            } catch (e: Exception) {
+                _numerologyUiState.value = NumerologyUiState.Error(
+                    e.message ?: "अंकशास्त्र गणना में त्रुटि उत्पन्न हुई।"
+                )
+            }
+        }
+    }
+
+    fun setNumerologyMethodology(methodology: com.example.domain.numerology.NumerologyMethodology) {
+        _numerologyMethodology.value = methodology
+        loadNumerology(methodology = methodology)
+    }
+
+    fun calculateCustomNumerology(
+        birthDate: LocalDate,
+        fullName: String,
+        methodology: com.example.domain.numerology.NumerologyMethodology = _numerologyMethodology.value
+    ) {
+        _numerologyUiState.value = NumerologyUiState.Calculating
+        viewModelScope.launch {
+            try {
+                val result = numerologyEngine.calculate(
+                    birthDate = birthDate,
+                    inputName = fullName,
+                    methodology = methodology
+                )
+                _numerologyUiState.value = NumerologyUiState.Success(result)
+            } catch (e: Exception) {
+                _numerologyUiState.value = NumerologyUiState.Error(
+                    e.message ?: "अंकशास्त्र गणना में त्रुटि उत्पन्न हुई।"
+                )
+            }
+        }
+    }
+
+    // ==========================================
+    // Phase 12 — AI Astrologer Functions
+    // ==========================================
+
+    fun askAIAstrologer(question: String) {
+        val trimmed = question.trim()
+        if (trimmed.isEmpty()) return
+
+        val profile = _activeUserProfile.value ?: _defaultUserProfile.value
+        val astroProfile = (_uiState.value as? AstrologyUiState.Success)?.profile
+        val dasha = _dashaTimeline.value
+        val transit = (_transitUiState.value as? TransitUiState.Success)?.snapshot
+        val panchang = (_panchangUiState.value as? PanchangUiState.Success)?.snapshot
+        val yogaDosha = (_yogaDoshaState.value as? YogaDoshaUiState.Success)?.snapshot
+
+        _aiAstrologerUiState.value = AIAstrologerUiState.Thinking
+        viewModelScope.launch {
+            try {
+                val result = aiAstrologerService.answerQuestion(
+                    question = trimmed,
+                    profile = profile,
+                    astrologyProfile = astroProfile,
+                    dashaTimeline = dasha,
+                    transitSnapshot = transit,
+                    panchangSnapshot = panchang,
+                    yogaDoshaSnapshot = yogaDosha
+                )
+                _aiAstrologerUiState.value = AIAstrologerUiState.Success(result)
+                _aiAstrologerHistory.value = listOf(result) + _aiAstrologerHistory.value
+            } catch (e: Exception) {
+                _aiAstrologerUiState.value = AIAstrologerUiState.Error(
+                    e.message ?: "AI ज्योतिषी विश्लेषण प्रक्रिया में अप्रत्याशित समस्या आई।"
+                )
+            }
+        }
+    }
+
+    fun clearAIAstrologerHistory() {
+        _aiAstrologerHistory.value = emptyList()
+        _aiAstrologerUiState.value = AIAstrologerUiState.Idle
+        aiAstrologerService.clearCache()
     }
 }
