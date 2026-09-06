@@ -42,6 +42,8 @@ sealed interface YogaDoshaUiState {
     data object Empty : YogaDoshaUiState
     data object Loading : YogaDoshaUiState
     data class Success(val snapshot: YogaDoshaSnapshot) : YogaDoshaUiState
+    data class NoResults(val profileName: String, val message: String) : YogaDoshaUiState
+    data class InsufficientData(val reason: String) : YogaDoshaUiState
     data class Error(val message: String) : YogaDoshaUiState
 }
 
@@ -536,9 +538,22 @@ class AstrologyViewModel(
      * Calculates deterministic Vedic Yoga & Dosha analysis for the active profile (Phase 6).
      */
     fun loadYogaDoshaAnalysis(profile: AstrologyProfile) {
-        val cacheKey = "${profile.birthData.name}_${profile.birthData.date}_${profile.birthData.time}_${profile.birthData.location.latitude}_${profile.birthData.location.longitude}"
+        val validation = com.example.domain.engine.yogadosha.ResultValidator.validateProfileData(profile)
+        if (!validation.isValid) {
+            _yogaDoshaState.value = YogaDoshaUiState.InsufficientData(validation.reason)
+            return
+        }
+
+        val cacheKey = "${profile.birthData.name}_${profile.birthData.date}_${profile.birthData.time}_${profile.birthData.location.latitude}_${profile.birthData.location.longitude}_${profile.birthData.timeZone.id}"
         yogaDoshaCache[cacheKey]?.let { cached ->
-            _yogaDoshaState.value = YogaDoshaUiState.Success(cached)
+            if (cached.detectedYogas.isEmpty() && cached.detectedDoshas.isEmpty()) {
+                _yogaDoshaState.value = YogaDoshaUiState.NoResults(
+                    profileName = profile.birthData.name,
+                    message = "कुण्डली में कोई प्रमुख विशेष योग या दोष उपस्थित नहीं पाया गया।"
+                )
+            } else {
+                _yogaDoshaState.value = YogaDoshaUiState.Success(cached)
+            }
             return
         }
 
@@ -547,7 +562,14 @@ class AstrologyViewModel(
             try {
                 val snapshot = com.example.domain.engine.YogaDoshaCalculator.calculate(profile)
                 yogaDoshaCache[cacheKey] = snapshot
-                _yogaDoshaState.value = YogaDoshaUiState.Success(snapshot)
+                if (snapshot.detectedYogas.isEmpty() && snapshot.detectedDoshas.isEmpty()) {
+                    _yogaDoshaState.value = YogaDoshaUiState.NoResults(
+                        profileName = profile.birthData.name,
+                        message = "कुण्डली में कोई प्रमुख विशेष योग या दोष उपस्थित नहीं पाया गया।"
+                    )
+                } else {
+                    _yogaDoshaState.value = YogaDoshaUiState.Success(snapshot)
+                }
             } catch (e: Exception) {
                 _yogaDoshaState.value = YogaDoshaUiState.Error(
                     e.message ?: "Failed to calculate Yoga and Dosha analysis."

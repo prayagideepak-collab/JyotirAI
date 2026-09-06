@@ -1,6 +1,16 @@
 package com.example.domain.models
 
 /**
+ * Deterministic Analysis Status according to Parashari evaluation principles.
+ */
+enum class AnalysisStatus(val displayName: String, val hindiName: String) {
+    DETECTED("Detected", "सक्रिय / उपस्थित"),
+    NOT_DETECTED("Not Detected", "अनुपस्थित"),
+    INSUFFICIENT_DATA("Insufficient Data", "अपूर्ण डेटा"),
+    CALCULATION_ERROR("Calculation Error", "गणना त्रुटि")
+}
+
+/**
  * Vedic Yoga Category classifications according to classical texts (BPHS, Phaladeepika, Saravali)
  */
 enum class YogaCategory(val displayName: String, val sanskritName: String) {
@@ -15,7 +25,7 @@ enum class YogaCategory(val displayName: String, val sanskritName: String) {
 }
 
 /**
- * Strength and vitality of a detected Vedic Yoga
+ * Strength and vitality of a evaluated Vedic Yoga
  */
 enum class YogaStrength(val displayName: String, val scoreMultiplier: Double) {
     EXCELLENT("Excellent (उच्च फल)", 1.0),
@@ -23,7 +33,8 @@ enum class YogaStrength(val displayName: String, val scoreMultiplier: Double) {
     MODERATE("Moderate (मध्यम फल)", 0.6),
     MILD("Mild (अल्प फल)", 0.4),
     WEAK("Weak (अति अल्प)", 0.2),
-    INACTIVE("Inactive", 0.0)
+    INACTIVE("Inactive (अनुपस्थित)", 0.0),
+    INSUFFICIENT_DATA("Insufficient Data (अपूर्ण डेटा)", 0.0)
 }
 
 /**
@@ -34,7 +45,7 @@ data class YogaAnalysisResult(
     val name: String,
     val sanskritName: String,
     val category: YogaCategory,
-    val isDetected: Boolean,
+    val status: AnalysisStatus = AnalysisStatus.NOT_DETECTED,
     val strength: YogaStrength,
     val participatingPlanets: List<String>,
     val participatingHouses: List<Int>,
@@ -44,7 +55,9 @@ data class YogaAnalysisResult(
     val calculationBasis: String,
     val limitations: String? = null,
     val positiveImpact: String = ""
-)
+) {
+    val isDetected: Boolean get() = status == AnalysisStatus.DETECTED
+}
 
 /**
  * Vedic Dosha Category classifications
@@ -67,7 +80,8 @@ enum class DoshaSeverity(val displayName: String, val isSevere: Boolean) {
     MODERATE("Moderate (मध्यम)", true),
     HIGH("High (तीव्र)", true),
     SEVERE("Severe (अति तीव्र)", true),
-    CANCELLED("Cancelled / Bhanga (दोष भंग)", false)
+    CANCELLED("Cancelled / Bhanga (दोष भंग)", false),
+    INSUFFICIENT_DATA("Insufficient Data (अपूर्ण डेटा)", false)
 }
 
 /**
@@ -78,7 +92,7 @@ data class DoshaAnalysisResult(
     val name: String,
     val sanskritName: String,
     val category: DoshaCategory,
-    val isDetected: Boolean,
+    val status: AnalysisStatus = AnalysisStatus.NOT_DETECTED,
     val severity: DoshaSeverity,
     val isCancelled: Boolean,
     val cancellationReason: String? = null,
@@ -89,12 +103,15 @@ data class DoshaAnalysisResult(
     val classicalRule: String,
     val remedialGuidance: List<String> = emptyList(),
     val calculationBasis: String = ""
-)
+) {
+    val isDetected: Boolean get() = status == AnalysisStatus.DETECTED
+}
 
 /**
  * Complete immutable snapshot of Yoga and Dosha analysis for a profile
  */
 data class YogaDoshaSnapshot(
+    val profileId: String = "",
     val profileName: String,
     val calculatedAtEpochMillis: Long,
     val detectedYogas: List<YogaAnalysisResult>,

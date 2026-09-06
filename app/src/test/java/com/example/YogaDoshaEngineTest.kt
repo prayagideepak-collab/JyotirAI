@@ -45,6 +45,7 @@ class YogaDoshaEngineTest {
     }
 
     private fun createSampleProfile(
+        name: String = "Test Native",
         lagnaSignIndex: Int = 0, // Aries
         planets: List<PlanetPosition>
     ): AstrologyProfile {
@@ -59,7 +60,7 @@ class YogaDoshaEngineTest {
             time = LocalTime.of(14, 30),
             location = location,
             timeZone = ZoneId.of("Asia/Kolkata"),
-            name = "Test Native"
+            name = name
         )
         val chart = Chart(
             type = "D1",
@@ -115,6 +116,7 @@ class YogaDoshaEngineTest {
         assertNotNull(gkYoga)
         assertTrue("Gaja Kesari Yoga should be detected", gkYoga!!.isDetected)
         assertEquals(YogaStrength.EXCELLENT, gkYoga.strength)
+        assertEquals(AnalysisStatus.DETECTED, gkYoga.status)
     }
 
     @Test
@@ -167,6 +169,31 @@ class YogaDoshaEngineTest {
         assertTrue("Manglik Dosha should be detected", manglik!!.isDetected)
         assertTrue("Manglik Dosha should be cancelled due to exaltation in 7th", manglik.isCancelled)
         assertEquals(DoshaSeverity.CANCELLED, manglik.severity)
+        assertEquals(AnalysisStatus.DETECTED, manglik.status)
+    }
+
+    @Test
+    fun testManglikNegativeCase() {
+        // Mars in Gemini (House 3 for Aries Lagna) -> Not in 1, 2, 4, 7, 8, 12 from Lagna (3), Moon (3), or Venus (11)
+        val planets = listOf(
+            pos("Mars", Rashi.GEMINI, 3, 10.0),
+            pos("Moon", Rashi.ARIES, 1, 10.0),
+            pos("Sun", Rashi.TAURUS, 2, 5.0),
+            pos("Mercury", Rashi.GEMINI, 3, 12.0),
+            pos("Jupiter", Rashi.PISCES, 12, 14.0),
+            pos("Venus", Rashi.LEO, 5, 22.0), // Mars is in 11th from Venus (non-Manglik)
+            pos("Saturn", Rashi.LIBRA, 7, 20.0),
+            pos("Rahu", Rashi.LEO, 5, 15.0),
+            pos("Ketu", Rashi.AQUARIUS, 11, 15.0)
+        )
+        val profile = createSampleProfile(lagnaSignIndex = 0, planets = planets)
+        val doshas = DoshaAnalysisEngine.analyzeDoshas(profile)
+
+        val manglik = doshas.firstOrNull { it.id == "manglik_dosha" }
+        assertNotNull(manglik)
+        assertFalse("Manglik Dosha should not be detected", manglik!!.isDetected)
+        assertEquals(DoshaSeverity.NONE, manglik.severity)
+        assertEquals(AnalysisStatus.NOT_DETECTED, manglik.status)
     }
 
     @Test
@@ -194,6 +221,27 @@ class YogaDoshaEngineTest {
     }
 
     @Test
+    fun testKaalSarpNegativeCase() {
+        // Rahu in Aries (1), Ketu in Libra (7). Some planets on one side, some on the other
+        val planets = listOf(
+            pos("Rahu", Rashi.ARIES, 1, 10.0),
+            pos("Ketu", Rashi.LIBRA, 7, 10.0),
+            pos("Sun", Rashi.TAURUS, 2, 15.0),
+            pos("Moon", Rashi.SAGITTARIUS, 9, 20.0), // On the other side!
+            pos("Mars", Rashi.CANCER, 4, 25.0),
+            pos("Mercury", Rashi.TAURUS, 2, 28.0),
+            pos("Jupiter", Rashi.LEO, 5, 12.0),
+            pos("Venus", Rashi.GEMINI, 3, 5.0),
+            pos("Saturn", Rashi.CAPRICORN, 10, 18.0) // On the other side!
+        )
+        val profile = createSampleProfile(lagnaSignIndex = 0, planets = planets)
+        val doshas = DoshaAnalysisEngine.analyzeDoshas(profile)
+
+        val detectedKaalSarp = doshas.filter { it.category == DoshaCategory.KAAL_SARP && it.isDetected }
+        assertTrue("No Kaal Sarp Dosha should be detected", detectedKaalSarp.isEmpty())
+    }
+
+    @Test
     fun testKemadrumaDoshaAndBhanga() {
         // Moon in Aries (House 1), 2nd (Taurus) and 12th (Pisces) empty of planets
         // But Jupiter in Kendra (Cancer, House 4) -> Kemadruma Bhanga (Cancellation)
@@ -216,6 +264,79 @@ class YogaDoshaEngineTest {
         assertTrue("Kemadruma should be detected", kemadruma!!.isDetected)
         assertTrue("Kemadruma Bhanga should apply due to Kendra planets & Jupiter", kemadruma.isCancelled)
         assertEquals(DoshaSeverity.CANCELLED, kemadruma.severity)
+    }
+
+    @Test
+    fun testGuruChandalPitraAndShrapitDoshas() {
+        // Jupiter with Rahu -> Guru Chandal
+        // Sun with Rahu -> Pitra Dosha
+        // Saturn with Rahu -> Shrapit Dosha
+        val planets = listOf(
+            pos("Sun", Rashi.ARIES, 1),
+            pos("Moon", Rashi.TAURUS, 2),
+            pos("Jupiter", Rashi.ARIES, 1),
+            pos("Saturn", Rashi.ARIES, 1),
+            pos("Rahu", Rashi.ARIES, 1),
+            pos("Ketu", Rashi.LIBRA, 7),
+            pos("Mars", Rashi.LEO, 5),
+            pos("Mercury", Rashi.GEMINI, 3),
+            pos("Venus", Rashi.CANCER, 4)
+        )
+        val profile = createSampleProfile(lagnaSignIndex = 0, planets = planets)
+        val doshas = DoshaAnalysisEngine.analyzeDoshas(profile)
+
+        val guruChandal = doshas.firstOrNull { it.id == "guru_chandal_dosha" }
+        val pitra = doshas.firstOrNull { it.id == "pitra_dosha" }
+        val shrapit = doshas.firstOrNull { it.id == "shrapit_dosha" }
+
+        assertNotNull(guruChandal)
+        assertTrue("Guru Chandal should be detected", guruChandal!!.isDetected)
+
+        assertNotNull(pitra)
+        assertTrue("Pitra Dosha should be detected", pitra!!.isDetected)
+
+        assertNotNull(shrapit)
+        assertTrue("Shrapit Dosha should be detected", shrapit!!.isDetected)
+    }
+
+    @Test
+    fun testGandmantaDosha() {
+        val gandmoolMoon = pos("Moon", Rashi.ARIES, 1, 5.0, nakshatraName = "Ashwini", nakshatraPada = 1)
+        val nonGandmoolMoon = pos("Moon", Rashi.TAURUS, 2, 15.0, nakshatraName = "Rohini", nakshatraPada = 2)
+
+        val planets1 = listOf(
+            gandmoolMoon,
+            pos("Sun", Rashi.LEO, 5),
+            pos("Mars", Rashi.SCORPIO, 8),
+            pos("Mercury", Rashi.GEMINI, 3),
+            pos("Jupiter", Rashi.SAGITTARIUS, 9),
+            pos("Venus", Rashi.LIBRA, 7),
+            pos("Saturn", Rashi.CAPRICORN, 10),
+            pos("Rahu", Rashi.VIRGO, 6),
+            pos("Ketu", Rashi.PISCES, 12)
+        )
+        val profile1 = createSampleProfile(lagnaSignIndex = 0, planets = planets1)
+        val doshas1 = DoshaAnalysisEngine.analyzeDoshas(profile1)
+        val gm1 = doshas1.firstOrNull { it.id.startsWith("gandmanta_dosha") }
+        assertNotNull(gm1)
+        assertTrue("Gandmool should be detected for Ashwini", gm1!!.isDetected)
+
+        val planets2 = listOf(
+            nonGandmoolMoon,
+            pos("Sun", Rashi.LEO, 5),
+            pos("Mars", Rashi.SCORPIO, 8),
+            pos("Mercury", Rashi.GEMINI, 3),
+            pos("Jupiter", Rashi.SAGITTARIUS, 9),
+            pos("Venus", Rashi.LIBRA, 7),
+            pos("Saturn", Rashi.CAPRICORN, 10),
+            pos("Rahu", Rashi.VIRGO, 6),
+            pos("Ketu", Rashi.PISCES, 12)
+        )
+        val profile2 = createSampleProfile(lagnaSignIndex = 0, planets = planets2)
+        val doshas2 = DoshaAnalysisEngine.analyzeDoshas(profile2)
+        val gm2 = doshas2.firstOrNull { it.id.startsWith("gandmanta_dosha") }
+        assertNotNull(gm2)
+        assertFalse("Gandmool should not be detected for Rohini", gm2!!.isDetected)
     }
 
     @Test
@@ -275,6 +396,41 @@ class YogaDoshaEngineTest {
     }
 
     @Test
+    fun testProfileIsolationAndSwitching() {
+        val planetsA = listOf(
+            pos("Mars", Rashi.ARIES, 1, 15.0),
+            pos("Moon", Rashi.TAURUS, 2, 10.0),
+            pos("Sun", Rashi.LEO, 5, 12.0),
+            pos("Mercury", Rashi.LEO, 5, 16.0),
+            pos("Jupiter", Rashi.SAGITTARIUS, 9, 20.0),
+            pos("Venus", Rashi.LIBRA, 7, 14.0),
+            pos("Saturn", Rashi.AQUARIUS, 11, 5.0),
+            pos("Rahu", Rashi.VIRGO, 6, 2.0),
+            pos("Ketu", Rashi.PISCES, 12, 2.0)
+        )
+        val profileA = createSampleProfile("Profile A", lagnaSignIndex = 0, planets = planetsA)
+        val snapshotA = YogaDoshaEngine.calculate(profileA)
+
+        val planetsB = listOf(
+            pos("Mars", Rashi.GEMINI, 3, 15.0),
+            pos("Moon", Rashi.CANCER, 4, 10.0),
+            pos("Sun", Rashi.VIRGO, 6, 12.0),
+            pos("Mercury", Rashi.VIRGO, 6, 16.0),
+            pos("Jupiter", Rashi.CAPRICORN, 10, 20.0),
+            pos("Venus", Rashi.SCORPIO, 8, 14.0),
+            pos("Saturn", Rashi.TAURUS, 2, 5.0),
+            pos("Rahu", Rashi.LIBRA, 7, 2.0),
+            pos("Ketu", Rashi.ARIES, 1, 2.0)
+        )
+        val profileB = createSampleProfile("Profile B", lagnaSignIndex = 3, planets = planetsB)
+        val snapshotB = YogaDoshaEngine.calculate(profileB)
+
+        assertEquals("Profile A", snapshotA.profileName)
+        assertEquals("Profile B", snapshotB.profileName)
+        assertNotEquals(snapshotA.detectedYogas.map { it.id }, snapshotB.detectedYogas.map { it.id })
+    }
+
+    @Test
     fun testResultValidatorCompleteness() {
         val incompleteProfile = createSampleProfile(
             lagnaSignIndex = 0,
@@ -302,7 +458,7 @@ class YogaDoshaEngineTest {
             pos("Rahu", Rashi.TAURUS, 2, 15.0),
             pos("Ketu", Rashi.SCORPIO, 8, 15.0)
         )
-        val profile = createSampleProfile(lagnaSignIndex = 0, planets = planets)
+        val profile = createSampleProfile("Test Native", lagnaSignIndex = 0, planets = planets)
         val snapshot = YogaDoshaCalculator.calculate(profile)
 
         assertNotNull(snapshot)

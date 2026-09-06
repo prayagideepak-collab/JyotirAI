@@ -163,6 +163,48 @@ fun YogaDoshaView(
                         modifier = Modifier.padding(vertical = 12.dp)
                     )
                 }
+                is YogaDoshaUiState.InsufficientData -> {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        modifier = Modifier.fillMaxWidth().testTag("yoga_dosha_insufficient")
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "अपूर्ण जन्म विवरण (Insufficient Data)",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = state.reason,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+                is YogaDoshaUiState.NoResults -> {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth().testTag("yoga_dosha_no_results")
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "${state.profileName}: कोई विशिष्ट योग/दोष नहीं",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = state.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
                 is YogaDoshaUiState.Success -> {
                     YogaDoshaContent(snapshot = state.snapshot)
                 }
@@ -382,7 +424,7 @@ private fun YogaCard(yoga: YogaAnalysisResult) {
                 exit = fadeOut()
             ) {
                 Column(modifier = Modifier.padding(top = 10.dp)) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     if (yoga.positiveImpact.isNotEmpty()) {
                         Text(
@@ -508,7 +550,7 @@ private fun DoshaCard(dosha: DoshaAnalysisResult) {
                 exit = fadeOut()
             ) {
                 Column(modifier = Modifier.padding(top = 10.dp)) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     Text(
                         text = "शास्त्रीय परिभाषा (Classical Basis):",

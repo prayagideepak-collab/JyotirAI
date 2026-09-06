@@ -16,6 +16,7 @@ object YogaDoshaEngine {
         val validation = ResultValidator.validateProfileData(profile)
         if (!validation.isValid) {
             return YogaDoshaSnapshot(
+                profileId = profile.birthData.name,
                 profileName = profile.birthData.name,
                 calculatedAtEpochMillis = System.currentTimeMillis(),
                 detectedYogas = emptyList(),
@@ -47,6 +48,7 @@ object YogaDoshaEngine {
         )
 
         return YogaDoshaSnapshot(
+            profileId = profile.birthData.name,
             profileName = profile.birthData.name,
             calculatedAtEpochMillis = System.currentTimeMillis(),
             detectedYogas = detectedYogas,
