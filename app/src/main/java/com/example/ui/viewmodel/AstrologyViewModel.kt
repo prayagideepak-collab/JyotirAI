@@ -9,6 +9,8 @@ import com.example.domain.interpretation.*
 import com.example.domain.location.LocationRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
+import com.example.domain.muhurta.MuhurtaEngine
+import com.example.domain.muhurta.MuhurtaEngineImpl
 import com.example.domain.pdf.KundliPdfExporter
 import com.example.domain.prediction.*
 import com.example.domain.profile.ProfileRepository
@@ -28,6 +30,12 @@ sealed interface AstrologyUiState {
     data object Calculating : AstrologyUiState
     data class Success(val profile: AstrologyProfile) : AstrologyUiState
     data class Error(val message: String) : AstrologyUiState
+}
+
+sealed interface MuhurtaUiState {
+    data object Loading : MuhurtaUiState
+    data class Success(val result: MuhurtaResult) : MuhurtaUiState
+    data class Error(val message: String) : MuhurtaUiState
 }
 
 sealed interface AdvancedInterpretationUiState {
@@ -94,11 +102,31 @@ class AstrologyViewModel(
     private val locationRepository: LocationRepository,
     private val profileRepository: ProfileRepository,
     private val muhurtaAlarmScheduler: MuhurtaAlarmScheduler? = null,
-    private val muhurtaAlarmRepository: MuhurtaAlarmRepository? = null
+    private val muhurtaAlarmRepository: MuhurtaAlarmRepository? = null,
+    private val muhurtaEngine: MuhurtaEngine = MuhurtaEngineImpl()
 ) : ViewModel() {
 
     private val dailyPredictionEngine: DailyPredictionEngine = DailyPredictionEngineImpl(profileRepository, astrologyEngine)
     private val predictionScheduleEngine: PredictionScheduleEngine = PredictionScheduleEngineImpl.create(profileRepository, astrologyEngine)
+
+    // Muhurta Engine State (Phase 10)
+    private val _muhurtaUiState = MutableStateFlow<MuhurtaUiState>(MuhurtaUiState.Loading)
+    val muhurtaUiState: StateFlow<MuhurtaUiState> = _muhurtaUiState.asStateFlow()
+
+    private val _selectedMuhurtaActivity = MutableStateFlow(MuhurtaActivityType.GENERAL_AUSPICIOUS)
+    val selectedMuhurtaActivity: StateFlow<MuhurtaActivityType> = _selectedMuhurtaActivity.asStateFlow()
+
+    private val _selectedMuhurtaDate = MutableStateFlow(LocalDate.now())
+    val selectedMuhurtaDate: StateFlow<LocalDate> = _selectedMuhurtaDate.asStateFlow()
+
+    private val _muhurtaDaysSpan = MutableStateFlow(1) // 1, 3, or 7 days
+    val muhurtaDaysSpan: StateFlow<Int> = _muhurtaDaysSpan.asStateFlow()
+
+    private val _selectedMuhurtaTimeSlot = MutableStateFlow(TimeSlotPreference.ALL_DAY)
+    val selectedMuhurtaTimeSlot: StateFlow<TimeSlotPreference> = _selectedMuhurtaTimeSlot.asStateFlow()
+
+    private val _isMuhurtaPersonalized = MutableStateFlow(true)
+    val isMuhurtaPersonalized: StateFlow<Boolean> = _isMuhurtaPersonalized.asStateFlow()
 
     // Muhurta Alarms State
     val muhurtaAlarms: StateFlow<List<MuhurtaAlarmConfig>> =
@@ -243,6 +271,7 @@ class AstrologyViewModel(
             loadTransits()
         }
         loadDailyRashifalInternal(_rashifalTargetDate.value)
+        loadMuhurta()
     }
 
     fun resolveLocation(query: String, onResult: (Result<List<BirthLocation>>) -> Unit) {
@@ -904,5 +933,92 @@ class AstrologyViewModel(
             timeZone = ZoneId.of("Asia/Kolkata")
         )
         calculateBirthChart(referenceData)
+    }
+
+    /**
+     * Calculates deterministic Phase 10 Vedic Muhurta for the requested activity and date parameters.
+     */
+    fun loadMuhurta(
+        activityType: MuhurtaActivityType? = null,
+        date: LocalDate? = null,
+        daysSpan: Int? = null,
+        timeSlot: TimeSlotPreference? = null,
+        personalized: Boolean? = null,
+        location: BirthLocation? = null
+    ) {
+        val targetActivity = activityType ?: _selectedMuhurtaActivity.value
+        val startDate = date ?: _selectedMuhurtaDate.value
+        val span = (daysSpan ?: _muhurtaDaysSpan.value).coerceIn(1, 30)
+        val endDate = startDate.plusDays((span - 1).toLong())
+        val slot = timeSlot ?: _selectedMuhurtaTimeSlot.value
+        val isPersonal = personalized ?: _isMuhurtaPersonalized.value
+        val targetLocation = location
+            ?: _currentBirthData.value?.location
+            ?: _activeUserProfile.value?.location
+            ?: _savedLocation.value
+
+        if (targetLocation == null || targetLocation.timeZoneId == null) {
+            _muhurtaUiState.value = MuhurtaUiState.Error("Location not set or missing timezone. Please select a valid location.")
+            return
+        }
+
+        _selectedMuhurtaActivity.value = targetActivity
+        _selectedMuhurtaDate.value = startDate
+        _muhurtaDaysSpan.value = span
+        _selectedMuhurtaTimeSlot.value = slot
+        _isMuhurtaPersonalized.value = isPersonal
+
+        val profileToUse = if (isPersonal) {
+            _activeUserProfile.value ?: _defaultUserProfile.value
+        } else null
+
+        val request = MuhurtaRequest(
+            activityType = targetActivity,
+            startDate = startDate,
+            endDate = endDate,
+            location = targetLocation,
+            profile = profileToUse,
+            preferredTimeSlot = slot
+        )
+
+        _muhurtaUiState.value = MuhurtaUiState.Loading
+        viewModelScope.launch {
+            val result = muhurtaEngine.calculateMuhurta(request)
+            result.fold(
+                onSuccess = { res ->
+                    _muhurtaUiState.value = MuhurtaUiState.Success(res)
+                },
+                onFailure = { err ->
+                    _muhurtaUiState.value = MuhurtaUiState.Error(
+                        err.message ?: "Failed to calculate Muhurta."
+                    )
+                }
+            )
+        }
+    }
+
+    fun setMuhurtaActivity(activityType: MuhurtaActivityType) {
+        loadMuhurta(activityType = activityType)
+    }
+
+    fun setMuhurtaDate(date: LocalDate) {
+        loadMuhurta(date = date)
+    }
+
+    fun shiftMuhurtaDays(days: Long) {
+        val next = _selectedMuhurtaDate.value.plusDays(days)
+        loadMuhurta(date = next)
+    }
+
+    fun setMuhurtaDaysSpan(days: Int) {
+        loadMuhurta(daysSpan = days)
+    }
+
+    fun setMuhurtaTimeSlot(slot: TimeSlotPreference) {
+        loadMuhurta(timeSlot = slot)
+    }
+
+    fun toggleMuhurtaPersonalization(enabled: Boolean) {
+        loadMuhurta(personalized = enabled)
     }
 }

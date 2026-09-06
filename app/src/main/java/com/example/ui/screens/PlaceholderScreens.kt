@@ -33,9 +33,6 @@ fun PlaceholderScreen(title: String, description: String) {
 }
 
 @Composable
-fun MuhurtaScreen() = PlaceholderScreen("Muhurta Explorer", "Phase 9 feature. Favorable timing calculation for life events.")
-
-@Composable
 fun CompatibilityScreen() = PlaceholderScreen("Kundali Milan", "Phase 8 feature. Ashta Kuta matching and deeper relationship insights.")
 
 @Composable
