@@ -10,8 +10,7 @@ import com.example.domain.location.LocationRepository
 import com.example.domain.location.LocationResolver
 import com.example.domain.models.*
 import com.example.domain.pdf.KundliPdfExporter
-import com.example.domain.prediction.DailyPredictionEngine
-import com.example.domain.prediction.DailyPredictionEngineImpl
+import com.example.domain.prediction.*
 import com.example.domain.profile.ProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,6 +80,14 @@ sealed interface DailyRashifalUiState {
     data class Error(val message: String) : DailyRashifalUiState
 }
 
+sealed interface PeriodicPredictionUiState {
+    data object Empty : PeriodicPredictionUiState
+    data object Loading : PeriodicPredictionUiState
+    data class Success(val result: PeriodicPredictionResult) : PeriodicPredictionUiState
+    data class InsufficientData(val reason: String) : PeriodicPredictionUiState
+    data class Error(val message: String) : PeriodicPredictionUiState
+}
+
 class AstrologyViewModel(
     private val astrologyEngine: AstrologyEngine,
     private val locationResolver: LocationResolver,
@@ -91,6 +98,7 @@ class AstrologyViewModel(
 ) : ViewModel() {
 
     private val dailyPredictionEngine: DailyPredictionEngine = DailyPredictionEngineImpl(profileRepository, astrologyEngine)
+    private val predictionScheduleEngine: PredictionScheduleEngine = PredictionScheduleEngineImpl.create(profileRepository, astrologyEngine)
 
     // Muhurta Alarms State
     val muhurtaAlarms: StateFlow<List<MuhurtaAlarmConfig>> =
@@ -174,6 +182,16 @@ class AstrologyViewModel(
     private val _predictionState = MutableStateFlow<PredictionUiState>(PredictionUiState.Empty)
     val predictionState: StateFlow<PredictionUiState> = _predictionState.asStateFlow()
     private val predictionCache = java.util.concurrent.ConcurrentHashMap<String, PredictionSnapshot>()
+
+    // Periodic Prediction Engine State (Phase 8 - Daily, Monthly, Yearly)
+    private val _periodicPredictionState = MutableStateFlow<PeriodicPredictionUiState>(PeriodicPredictionUiState.Empty)
+    val periodicPredictionState: StateFlow<PeriodicPredictionUiState> = _periodicPredictionState.asStateFlow()
+
+    private val _periodicPeriodType = MutableStateFlow<PredictionPeriodType>(PredictionPeriodType.DAILY)
+    val periodicPeriodType: StateFlow<PredictionPeriodType> = _periodicPeriodType.asStateFlow()
+
+    private val _periodicTargetDate = MutableStateFlow<LocalDate>(LocalDate.now())
+    val periodicTargetDate: StateFlow<LocalDate> = _periodicTargetDate.asStateFlow()
 
     // Advanced Vedic Intelligence & Interpretation State (Phase 12 - Frozen)
     private val _advancedInterpretationState = MutableStateFlow<AdvancedInterpretationUiState>(AdvancedInterpretationUiState.Empty)
@@ -336,6 +354,7 @@ class AstrologyViewModel(
      */
     fun deleteProfile(profileId: String) {
         viewModelScope.launch {
+            predictionScheduleEngine.clearCache(profileId)
             profileRepository.deleteProfile(profileId)
 
             val remainingProfiles = profileRepository.getAllProfiles()
@@ -453,6 +472,7 @@ class AstrologyViewModel(
                     loadTransits(location = birthData.location, natalProfile = profile)
                     loadYogaDoshaAnalysis(profile)
                     loadPredictions(profile)
+                    loadPeriodicPrediction(profile)
                 },
                 onFailure = { error ->
                     _uiState.value = AstrologyUiState.Error(
@@ -545,6 +565,7 @@ class AstrologyViewModel(
         _expandedMahadashaPlanet.value = null
         _yogaDoshaState.value = YogaDoshaUiState.Empty
         _predictionState.value = PredictionUiState.Empty
+        _periodicPredictionState.value = PeriodicPredictionUiState.Empty
         _advancedInterpretationState.value = AdvancedInterpretationUiState.Empty
         loadTransits(natalProfile = null)
     }
@@ -634,6 +655,72 @@ class AstrologyViewModel(
                 )
             }
         }
+    }
+
+    /**
+     * Loads structured Phase 8 Periodic Prediction (Daily, Monthly, or Yearly).
+     */
+    fun loadPeriodicPrediction(
+        profile: AstrologyProfile? = null,
+        periodType: PredictionPeriodType? = null,
+        date: LocalDate? = null
+    ) {
+        val activeProfile = profile ?: (_uiState.value as? AstrologyUiState.Success)?.profile
+        if (activeProfile == null) {
+            _periodicPredictionState.value = PeriodicPredictionUiState.InsufficientData(
+                "Please enter or select a birth profile to view periodic predictions."
+            )
+            return
+        }
+
+        val type = periodType ?: _periodicPeriodType.value
+        val target = date ?: _periodicTargetDate.value
+
+        _periodicPredictionState.value = PeriodicPredictionUiState.Loading
+        viewModelScope.launch {
+            val result = predictionScheduleEngine.getPrediction(
+                profile = activeProfile,
+                periodType = type,
+                date = target
+            )
+            result.fold(
+                onSuccess = { predictionResult ->
+                    _periodicPredictionState.value = PeriodicPredictionUiState.Success(predictionResult)
+                },
+                onFailure = { error ->
+                    _periodicPredictionState.value = PeriodicPredictionUiState.Error(
+                        error.message ?: "Failed to compute ${type.displayName}."
+                    )
+                }
+            )
+        }
+    }
+
+    fun setPeriodicPeriodType(periodType: PredictionPeriodType) {
+        _periodicPeriodType.value = periodType
+        loadPeriodicPrediction(periodType = periodType)
+    }
+
+    fun setPeriodicTargetDate(date: LocalDate) {
+        _periodicTargetDate.value = date
+        loadPeriodicPrediction(date = date)
+    }
+
+    fun shiftPeriodicPeriod(delta: Long) {
+        val current = _periodicTargetDate.value
+        val next = when (_periodicPeriodType.value) {
+            PredictionPeriodType.DAILY -> current.plusDays(delta)
+            PredictionPeriodType.MONTHLY -> current.plusMonths(delta)
+            PredictionPeriodType.YEARLY -> current.plusYears(delta)
+        }
+        _periodicTargetDate.value = next
+        loadPeriodicPrediction(date = next)
+    }
+
+    fun resetPeriodicPeriodToNow() {
+        val today = LocalDate.now()
+        _periodicTargetDate.value = today
+        loadPeriodicPrediction(date = today)
     }
 
     /**

@@ -399,6 +399,53 @@ object AstrologyHindiSpeechFormatter {
     }
 
     /**
+     * Converts a PeriodicPredictionResult (Daily, Monthly, Yearly) into natural, fluid spoken Hindi.
+     */
+    fun formatPeriodicPrediction(result: PeriodicPredictionResult): String {
+        val sb = StringBuilder()
+        val periodName = result.predictionType.hindiName
+        sb.append("ज्योतिर् एआई $periodName। ")
+        sb.append("जातक ${result.profileName} के लिए। ")
+
+        when (result.predictionType) {
+            PredictionPeriodType.DAILY -> {
+                val dateFormatted = result.timeContext.targetDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))
+                sb.append("दिनांक $dateFormatted। ")
+            }
+            PredictionPeriodType.MONTHLY -> {
+                val monthName = getMonthNameHindi(result.timeContext.targetMonth ?: 1)
+                sb.append("माह $monthName ${result.timeContext.targetYear}। ")
+            }
+            PredictionPeriodType.YEARLY -> {
+                sb.append("वर्ष ${result.timeContext.targetYear}। ")
+            }
+        }
+
+        val maha = GRAHA_HINDI_MAP[result.dashaEvidence.mahadashaLord] ?: result.dashaEvidence.mahadashaLord
+        val antar = GRAHA_HINDI_MAP[result.dashaEvidence.antardashaLord] ?: result.dashaEvidence.antardashaLord
+        sb.append("सक्रिय विंशोत्तरी दशा: $maha महादशा में $antar अंतर्दशा। ")
+
+        sb.append("समग्र ज्योतिषीय दृष्टिकोण: ${translateToHindiSpeech(result.overallSummary)}। ")
+
+        if (result.supportingThemes.isNotEmpty()) {
+            sb.append("सकारात्मक प्रभाव: ")
+            result.supportingThemes.take(3).forEach { factor ->
+                sb.append("${translateToHindiSpeech(factor)}। ")
+            }
+        }
+
+        if (result.cautionThemes.isNotEmpty()) {
+            sb.append("सतर्कता सुझाव: ")
+            result.cautionThemes.take(3).forEach { caution ->
+                sb.append("${translateToHindiSpeech(caution)}। ")
+            }
+        }
+
+        sb.append("यह फलित शास्त्रीय पराशरी सिद्धांतों पर आधारित है।")
+        return cleanForSpeech(sb.toString())
+    }
+
+    /**
      * Cleans text to remove markdown, UI markers, and unwanted symbols.
      */
     fun cleanForSpeech(input: String): String {

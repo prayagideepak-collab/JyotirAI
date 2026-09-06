@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +35,7 @@ import com.example.ui.components.SpeakerButtonStyle
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.ui.viewmodel.DailyRashifalUiState
+import com.example.ui.viewmodel.PeriodicPredictionUiState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -55,18 +57,26 @@ fun DailyRashifalScreen(
     val targetDate by viewModel.rashifalTargetDate.collectAsStateWithLifecycle()
     val defaultProfile by viewModel.defaultUserProfile.collectAsStateWithLifecycle()
 
+    val periodicState by viewModel.periodicPredictionState.collectAsStateWithLifecycle()
+    val periodicPeriodType by viewModel.periodicPeriodType.collectAsStateWithLifecycle()
+    val periodicTargetDate by viewModel.periodicTargetDate.collectAsStateWithLifecycle()
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
-                            text = "Daily Rashifal",
+                            text = when (periodicPeriodType) {
+                                PredictionPeriodType.DAILY -> "Daily Predictions"
+                                PredictionPeriodType.MONTHLY -> "Monthly Predictions"
+                                PredictionPeriodType.YEARLY -> "Yearly Predictions"
+                            },
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = AccentAmber
                         )
                         Text(
-                            text = "Personalised Jyotish Engine",
+                            text = "Deterministic Vedic Predictions (Phase 8)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -88,23 +98,36 @@ fun DailyRashifalScreen(
                     }
                 },
                 actions = {
-                    val currentSuccessRashifal = (rashifalState as? DailyRashifalUiState.Success)?.rashifal
-                    if (currentSuccessRashifal != null) {
+                    val currentPeriodicResult = (periodicState as? PeriodicPredictionUiState.Success)?.result
+                    if (currentPeriodicResult != null) {
                         AstrologySpeakerButton(
                             speechManager = speechManager,
-                            hindiTextProvider = { AstrologyHindiSpeechFormatter.formatDailyRashifal(currentSuccessRashifal) },
+                            hindiTextProvider = { AstrologyHindiSpeechFormatter.formatPeriodicPrediction(currentPeriodicResult) },
                             buttonStyle = SpeakerButtonStyle.ICON_ONLY,
-                            testTag = "rashifal_tts_speaker_button"
+                            testTag = "periodic_tts_speaker_button"
                         )
+                    } else {
+                        val currentSuccessRashifal = (rashifalState as? DailyRashifalUiState.Success)?.rashifal
+                        if (currentSuccessRashifal != null) {
+                            AstrologySpeakerButton(
+                                speechManager = speechManager,
+                                hindiTextProvider = { AstrologyHindiSpeechFormatter.formatDailyRashifal(currentSuccessRashifal) },
+                                buttonStyle = SpeakerButtonStyle.ICON_ONLY,
+                                testTag = "rashifal_tts_speaker_button"
+                            )
+                        }
                     }
 
                     IconButton(
-                        onClick = { viewModel.resetRashifalToToday() },
+                        onClick = {
+                            viewModel.resetRashifalToToday()
+                            viewModel.resetPeriodicPeriodToNow()
+                        },
                         modifier = Modifier.testTag("rashifal_reset_today_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Today,
-                            contentDescription = "Reset to Today",
+                            contentDescription = "Reset to Current Period",
                             tint = AccentAmber
                         )
                     }
@@ -124,20 +147,46 @@ fun DailyRashifalScreen(
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Default Profile Banner & Date Navigator
+            // 1. Period Selector Tab Row (Daily / Monthly / Yearly)
             item {
-                DateAndProfileHeader(
-                    defaultProfile = defaultProfile,
-                    targetDate = targetDate,
-                    onPrevDay = { viewModel.shiftRashifalDays(-1) },
-                    onNextDay = { viewModel.shiftRashifalDays(1) },
-                    onResetToday = { viewModel.resetRashifalToToday() }
+                PeriodSelectorTabRow(
+                    selectedType = periodicPeriodType,
+                    onSelect = { viewModel.setPeriodicPeriodType(it) }
                 )
             }
 
-            // 2. Main Content State
-            when (val state = rashifalState) {
-                is DailyRashifalUiState.Loading -> {
+            // 2. Profile Banner & Period Navigator
+            item {
+                PeriodicNavigationHeader(
+                    periodType = periodicPeriodType,
+                    defaultProfile = defaultProfile,
+                    targetDate = if (periodicPeriodType == PredictionPeriodType.DAILY) targetDate else periodicTargetDate,
+                    onPrev = {
+                        if (periodicPeriodType == PredictionPeriodType.DAILY) {
+                            viewModel.shiftRashifalDays(-1)
+                            viewModel.shiftPeriodicPeriod(-1)
+                        } else {
+                            viewModel.shiftPeriodicPeriod(-1)
+                        }
+                    },
+                    onNext = {
+                        if (periodicPeriodType == PredictionPeriodType.DAILY) {
+                            viewModel.shiftRashifalDays(1)
+                            viewModel.shiftPeriodicPeriod(1)
+                        } else {
+                            viewModel.shiftPeriodicPeriod(1)
+                        }
+                    },
+                    onReset = {
+                        viewModel.resetRashifalToToday()
+                        viewModel.resetPeriodicPeriodToNow()
+                    }
+                )
+            }
+
+            // 3. Periodic Main Content State
+            when (val pState = periodicState) {
+                is PeriodicPredictionUiState.Loading -> {
                     item {
                         Box(
                             modifier = Modifier
@@ -152,17 +201,17 @@ fun DailyRashifalScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(
                                     color = AccentAmber,
-                                    modifier = Modifier.testTag("rashifal_loading_indicator")
+                                    modifier = Modifier.testTag("periodic_loading_indicator")
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Synthesizing Personalised Gochar & Dasha...",
+                                    text = "Synthesizing ${periodicPeriodType.displayName}...",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Evaluating Tara Bala, Lunar Transit & Panchang Energy",
+                                    text = "Correlating Vimshottari Dasha, Gochar Transits & Bhava Significations",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -171,14 +220,76 @@ fun DailyRashifalScreen(
                     }
                 }
 
-                is DailyRashifalUiState.NoDefaultProfile -> {
+                is PeriodicPredictionUiState.Success -> {
+                    val result = pState.result
+
+                    // 1. Overall Horizon & Energy Summary Card
+                    item {
+                        PeriodicHorizonCard(result)
+                    }
+
+                    // 2. Dasha & Period Transition Alerts (if any)
+                    if (result.importantPeriodChanges.isNotEmpty()) {
+                        item {
+                            PeriodTransitionsCard(result.importantPeriodChanges)
+                        }
+                    }
+
+                    // 3. Gochar / Transit Evidence Card
+                    item {
+                        PeriodicTransitCard(result.transitEvidence)
+                    }
+
+                    // 4. Supporting & Caution Themes
+                    item {
+                        ThemesSummaryCard(
+                            supportingThemes = result.supportingThemes,
+                            cautionThemes = result.cautionThemes
+                        )
+                    }
+
+                    // 5. Life Topics Breakdown Section Header
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Life Domain Predictions",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = "7 Classical Domains",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AccentAmber
+                            )
+                        }
+                    }
+
+                    // 6. Topic Cards (Career, Marriage, Finance, Family, Education, Property, General Life)
+                    items(LifeTopic.entries) { topic ->
+                        val topicPred = result.topicPredictions[topic]
+                        if (topicPred != null) {
+                            PeriodicTopicCard(topicPred)
+                        }
+                    }
+
+                    // 7. Limitations & Ephemeris Traceability Card
+                    item {
+                        PeriodicLimitationsCard(result.limitations)
+                    }
+                }
+
+                is PeriodicPredictionUiState.InsufficientData -> {
                     item {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(24.dp))
                                 .border(1.dp, AccentAmber.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-                                .testTag("no_default_profile_card"),
+                                .testTag("no_profile_card"),
                             colors = CardDefaults.cardColors(containerColor = SurfaceCard)
                         ) {
                             Column(
@@ -195,33 +306,33 @@ fun DailyRashifalScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Default Profile Required",
+                                    text = "Birth Profile Required",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Daily Rashifal requires an explicit Default Profile to calculate precise Vedic transits, Tara Bala, and Dasha cycles.",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = pState.reason,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
-                                    onClick = onNavigateToHome,
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentAmber, contentColor = DeepNavy),
-                                    modifier = Modifier.testTag("go_to_profiles_button")
+                                    onClick = { viewModel.loadReferenceProfile() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AccentAmber,
+                                        contentColor = DeepNavy
+                                    )
                                 ) {
-                                    Icon(imageVector = Icons.Default.Person, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Select or Create Profile", fontWeight = FontWeight.Bold)
+                                    Text("Load Sample Profile", fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
                     }
                 }
 
-                is DailyRashifalUiState.Error -> {
+                is PeriodicPredictionUiState.Error -> {
                     item {
                         Card(
                             modifier = Modifier
@@ -237,70 +348,55 @@ fun DailyRashifalScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "Calculation Error",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "Prediction Calculation Error",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.error
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = state.message,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = pState.message,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(onClick = { viewModel.loadDailyRashifal() }) {
-                                    Text("Retry Calculation")
-                                }
                             }
                         }
                     }
                 }
 
-                is DailyRashifalUiState.Success -> {
-                    val r = state.rashifal
-
-                    // 2. Daily Energy & Theme Banner
-                    item {
-                        DailyThemeCard(
-                            rashifal = r,
-                            speechManager = speechManager
-                        )
-                    }
-
-                    // 3. Astrological Alignment & Traceability Matrix
-                    item {
-                        AstrologicalAlignmentCard(rashifal = r)
-                    }
-
-                    // 4. Key Influences
-                    item {
-                        KeyInfluencesSection(influences = r.keyInfluences)
-                    }
-
-                    // 5. Priorities & Favorable Actions
-                    item {
-                        PrioritiesSection(recommendations = r.priorities)
-                    }
-
-                    // 6. Cautions & Mindfulness Areas
-                    item {
-                        CautionsSection(cautions = r.cautions)
-                    }
-
-                    // 7. Local Auspicious Timing (Muhurta)
-                    item {
-                        TimingGuidanceCard(timing = r.timingGuidance, locationName = r.birthLocationName)
-                    }
-
-                    // 8. Traditional Upay / Remedies
-                    item {
-                        TraditionalRemediesSection(remedies = r.traditionalRemedies)
-                    }
-
-                    // 9. Full Astrological Factors Attribution & Disclaimer
-                    item {
-                        DisclaimerAndAttributionCard(rashifal = r)
+                PeriodicPredictionUiState.Empty -> {
+                    // Fallback to Daily Rashifal state if periodic state is empty
+                    when (val state = rashifalState) {
+                        is DailyRashifalUiState.Success -> {
+                            val r = state.rashifal
+                            item {
+                                DailyEnergyOverviewCard(r)
+                            }
+                            item {
+                                TaraBalaCard(r.taraBala)
+                            }
+                            item {
+                                PrioritiesAndCautionsCard(
+                                    priorities = r.priorities,
+                                    cautions = r.cautions
+                                )
+                            }
+                            item {
+                                TraditionalRemediesCard(r.traditionalRemedies)
+                            }
+                            item {
+                                DisclaimerAndAttributionCard(r)
+                            }
+                        }
+                        else -> {
+                            item {
+                                Text(
+                                    text = "Ready to generate predictions.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -309,12 +405,61 @@ fun DailyRashifalScreen(
 }
 
 @Composable
-private fun DateAndProfileHeader(
+private fun PeriodSelectorTabRow(
+    selectedType: PredictionPeriodType,
+    onSelect: (PredictionPeriodType) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            PredictionPeriodType.entries.forEach { type ->
+                val isSelected = type == selectedType
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) AccentAmber else Color.Transparent)
+                        .clickable { onSelect(type) }
+                        .padding(vertical = 10.dp)
+                        .testTag("period_tab_${type.code}"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = type.displayName.substringBefore(" "),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (isSelected) DeepNavy else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = type.hindiName.substringBefore(" "),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = if (isSelected) DeepNavy.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodicNavigationHeader(
+    periodType: PredictionPeriodType,
     defaultProfile: UserProfile?,
     targetDate: LocalDate,
-    onPrevDay: () -> Unit,
-    onNextDay: () -> Unit,
-    onResetToday: () -> Unit
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onReset: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -328,107 +473,94 @@ private fun DateAndProfileHeader(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Profile Badge
+            // Target Subject
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(AccentAmber.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = AccentAmber,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = defaultProfile?.name ?: "No Default Profile",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "DEFAULT PROFILE",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 9.sp),
-                                color = AccentAmber
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "•  ${defaultProfile?.location?.placeName ?: ""}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = defaultProfile?.name ?: "Current Profile",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                defaultProfile?.location?.placeName?.let { place ->
+                    Text(
+                        text = place.substringBefore(","),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = BorderSubtle)
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Date Controls
+            // Navigation Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onPrevDay,
-                    modifier = Modifier.testTag("rashifal_prev_day_button")
+                    onClick = onPrev,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceNavy)
+                        .testTag("periodic_prev_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Previous Day",
-                        tint = MaterialTheme.colorScheme.onSurface
+                        contentDescription = "Previous Period",
+                        tint = AccentAmber,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
-                val isToday = targetDate == LocalDate.now()
-                val formatter = DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy")
+                val periodLabel = when (periodType) {
+                    PredictionPeriodType.DAILY -> targetDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
+                    PredictionPeriodType.MONTHLY -> targetDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+                    PredictionPeriodType.YEARLY -> "Year ${targetDate.year}"
+                }
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { onResetToday() }
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = targetDate.format(formatter),
+                        text = periodLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (isToday) AccentAmber else MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                    if (isToday) {
-                        Text(
-                            text = "Today",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentAmber
-                        )
-                    } else {
-                        Text(
-                            text = "Tap to reset to Today",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = periodType.hindiName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentAmber
+                    )
                 }
 
                 IconButton(
-                    onClick = onNextDay,
-                    modifier = Modifier.testTag("rashifal_next_day_button")
+                    onClick = onNext,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceNavy)
+                        .testTag("periodic_next_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Next Day",
-                        tint = MaterialTheme.colorScheme.onSurface
+                        contentDescription = "Next Period",
+                        tint = AccentAmber,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -437,15 +569,412 @@ private fun DateAndProfileHeader(
 }
 
 @Composable
-private fun DailyThemeCard(
-    rashifal: DailyRashifal,
-    speechManager: JyotirAiSpeechManager
+private fun PeriodicHorizonCard(result: PeriodicPredictionResult) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+            .testTag("periodic_horizon_card"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Vedic Astrological Horizon",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = AccentAmber
+                    )
+                    Text(
+                        text = "Active Dasha: ${result.dashaEvidence.mahadashaLord}-${result.dashaEvidence.antardashaLord}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                SupportLevelBadge(result.overallSupportLevel)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = result.overallSummary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 22.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PeriodTransitionsCard(transitions: List<PeriodTransitionInfo>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, AccentAmber.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceNavy)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ChangeCircle,
+                    contentDescription = null,
+                    tint = AccentAmber,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Key Period Transitions",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = AccentAmber
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            transitions.forEach { t ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = t.transitionType,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = t.description,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = t.transitionDate.format(DateTimeFormatter.ofPattern("d MMM")),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = AccentAmber
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodicTransitCard(transitEvidence: PeriodicTransitEvidence) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Public,
+                    contentDescription = null,
+                    tint = AccentAmber,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Gochar (Planetary Transit) Influence",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = transitEvidence.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (transitEvidence.retrogradePlanets.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Retrograde Grahas: ${transitEvidence.retrogradePlanets.joinToString(", ")} (Vakri - reflective energy)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = AccentAmber
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemesSummaryCard(
+    supportingThemes: List<String>,
+    cautionThemes: List<String>
 ) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Supporting
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Supportive Areas",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                supportingThemes.take(3).forEach { theme ->
+                    Text(
+                        text = "• $theme",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+        }
+
+        // Caution
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFFFF9800).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Caution Areas",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFFFF9800)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                cautionThemes.take(3).forEach { theme ->
+                    Text(
+                        text = "• $theme",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodicTopicCard(topicPred: PeriodicTopicPrediction) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(18.dp))
+            .clickable { expanded = !expanded }
+            .testTag("topic_card_${topicPred.topic.code}"),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = getTopicIcon(topicPred.topic),
+                        contentDescription = null,
+                        tint = AccentAmber,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = topicPred.topic.displayName,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = topicPred.topic.hindiName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                SupportLevelBadge(topicPred.supportLevel)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = topicPred.synthesis,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 18.sp
+            )
+
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 10.dp)) {
+                    HorizontalDivider(color = BorderSubtle)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    topicPred.timingGuidance?.let { timing ->
+                        Text(
+                            text = "Timing Guidance: $timing",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentAmber
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    if (topicPred.supportingFactors.isNotEmpty()) {
+                        Text(
+                            text = "Supporting: ${topicPred.supportingFactors.joinToString("; ")}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+
+                    if (topicPred.cautionFactors.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Caution: ${topicPred.cautionFactors.joinToString("; ")}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = Color(0xFFFF9800)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodicLimitationsCard(limitations: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Text(
+                text = "Methodological Framework & Free Will",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = limitations,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                textAlign = TextAlign.Justify
+            )
+        }
+    }
+}
+
+private fun getTopicIcon(topic: LifeTopic): ImageVector {
+    return when (topic) {
+        LifeTopic.CAREER -> Icons.Default.Work
+        LifeTopic.MARRIAGE_RELATIONSHIPS -> Icons.Default.Favorite
+        LifeTopic.FINANCE -> Icons.Default.AccountBalance
+        LifeTopic.FAMILY -> Icons.Default.Group
+        LifeTopic.EDUCATION -> Icons.Default.School
+        LifeTopic.PROPERTY_HOME -> Icons.Default.Home
+        LifeTopic.GENERAL_LIFE -> Icons.Default.SelfImprovement
+    }
+}
+
+@Composable
+private fun SupportLevelBadge(supportLevel: PredictionSupportLevel) {
+    val (bgColor, textColor) = when (supportLevel) {
+        PredictionSupportLevel.STRONGLY_SUPPORTED -> Color(0xFF4CAF50).copy(alpha = 0.15f) to Color(0xFF4CAF50)
+        PredictionSupportLevel.SUPPORTED -> Color(0xFF2196F3).copy(alpha = 0.15f) to Color(0xFF64B5F6)
+        PredictionSupportLevel.MIXED_SIGNALS -> Color(0xFFFF9800).copy(alpha = 0.15f) to Color(0xFFFFB74D)
+        PredictionSupportLevel.CHALLENGING -> Color(0xFFE91E63).copy(alpha = 0.15f) to Color(0xFFF06292)
+        PredictionSupportLevel.LIMITED_DATA,
+        PredictionSupportLevel.INSUFFICIENT_DATA -> Color(0xFF9E9E9E).copy(alpha = 0.15f) to Color(0xFFBDBDBD)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = supportLevel.displayName,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+            color = textColor
+        )
+    }
+}
+
+@Composable
+private fun DailyEnergyOverviewCard(rashifal: DailyRashifal) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, AccentAmber.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+            .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
+            .testTag("rashifal_overview_card"),
         colors = CardDefaults.cardColors(containerColor = SurfaceCard)
     ) {
         Column(
@@ -458,362 +987,58 @@ private fun DailyThemeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = AccentAmber,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                Column {
                     Text(
-                        text = "Daily Theme",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = AccentAmber
+                        text = "Daily Jyotish Alignment",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Tara Bala & Gochar Synthesis",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Energy Score Chip
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AccentAmber.copy(alpha = 0.15f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(AccentAmber.copy(alpha = 0.12f))
+                        .border(1.5.dp, AccentAmber, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Alignment ${rashifal.energyScore}%",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = AccentAmber
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${rashifal.energyScore}%",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = AccentAmber
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = rashifal.dailyTheme,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = rashifal.primaryFocus,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Hindi Audio Player Button
-            AstrologySpeakerButton(
-                speechManager = speechManager,
-                hindiTextProvider = { AstrologyHindiSpeechFormatter.formatDailyRashifal(rashifal) },
-                buttonStyle = SpeakerButtonStyle.FILLED_CHIP,
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "rashifal_listen_hindi_button"
-            )
-        }
-    }
-}
-
-@Composable
-private fun AstrologicalAlignmentCard(rashifal: DailyRashifal) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
             Text(
-                text = "Natal & Gochar Alignment",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                text = rashifal.dailyTheme,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AlignmentBadge(label = "Lagna", value = rashifal.lagna, modifier = Modifier.weight(1f))
-                AlignmentBadge(label = "Janma Rashi", value = rashifal.moonSign, modifier = Modifier.weight(1f))
-                AlignmentBadge(label = "Janma Nakshatra", value = rashifal.birthNakshatra, modifier = Modifier.weight(1.2f))
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AlignmentBadge(
-                    label = "Active Dasha",
-                    value = "${rashifal.currentMahadashaLord}-${rashifal.currentAntardashaLord}",
-                    modifier = Modifier.weight(1f)
-                )
-                AlignmentBadge(
-                    label = "Navatara",
-                    value = rashifal.taraBala.taraName,
-                    highlight = rashifal.taraBala.quality == "Highly Favorable" || rashifal.taraBala.quality == "Supreme Favor",
-                    modifier = Modifier.weight(1f)
-                )
-                AlignmentBadge(
-                    label = "Transit Moon",
-                    value = rashifal.transitMoonHouseFromNatalMoon?.let { "Bhava $it" } ?: "Active",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlignmentBadge(
-    label: String,
-    value: String,
-    highlight: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceElevated)
-            .border(
-                1.dp,
-                if (highlight) AccentAmber.copy(alpha = 0.4f) else BorderSubtle,
-                RoundedCornerShape(12.dp)
-            )
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-    ) {
-        Column {
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = if (highlight) AccentAmber else MaterialTheme.colorScheme.onSurface
+                text = "Primary Focus: ${rashifal.primaryFocus}",
+                style = MaterialTheme.typography.bodySmall,
+                color = AccentAmber
             )
         }
     }
 }
 
 @Composable
-private fun KeyInfluencesSection(influences: List<AstrologicalInfluence>) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "Key Planetary Influences",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        influences.forEach { inf ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = inf.title,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val (chipBg, chipText) = when (inf.impactType) {
-                            ImpactType.FAVORABLE -> Pair(Color(0xFF1B5E20).copy(alpha = 0.3f), Color(0xFF81C784))
-                            ImpactType.CAUTION -> Pair(Color(0xFFB71C1C).copy(alpha = 0.3f), Color(0xFFE57373))
-                            ImpactType.NEUTRAL -> Pair(SurfaceElevated, MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(chipBg)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = inf.impactType.name,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                color = chipText
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = inf.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Factor: ${inf.contributingFactor}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = AccentAmber.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PrioritiesSection(recommendations: List<DailyRecommendation>) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "Favourable Priorities & Actions",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        recommendations.forEach { rec ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF2E7D32).copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color(0xFF81C784),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = rec.category,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = AccentAmber
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = rec.advice,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Astrological Basis: ${rec.astrologicalReason}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CautionsSection(cautions: List<DailyCaution>) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "Mindfulness & Caution Areas",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        cautions.forEach { c ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFC62828).copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = Color(0xFFE57373),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = c.category,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFFE57373)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = c.warning,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Reason: ${c.astrologicalReason}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimingGuidanceCard(timing: DailyTimingGuidance, locationName: String) {
+private fun TaraBalaCard(taraBala: TaraBalaInfo) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -832,100 +1057,20 @@ private fun TimingGuidanceCard(timing: DailyTimingGuidance, locationName: String
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Auspicious Timing (Muhurta)",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Tara Bala (Lunar Nakshatra Force)",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = AccentAmber
                 )
                 Text(
-                    text = locationName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Brahma Muhurta
-            timing.brahmaMuhurtaWindow?.let { win ->
-                TimingRow(
-                    icon = Icons.Default.Brightness5,
-                    title = "Brahma Muhurta",
-                    window = win,
-                    description = timing.brahmaMuhurtaAdvice ?: "Early morning auspicious contemplation window.",
-                    iconTint = AccentAmber
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Rahukaal
-            timing.rahukaalWindow?.let { win ->
-                TimingRow(
-                    icon = Icons.Default.AccessTime,
-                    title = "Rahukaal (Inauspicious)",
-                    window = win,
-                    description = timing.rahukaalAdvice ?: "Avoid initiating major ventures during this period.",
-                    iconTint = Color(0xFFE57373)
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Abhijit Muhurta
-            timing.abhijitMuhurtaWindow?.let { win ->
-                TimingRow(
-                    icon = Icons.Default.Flare,
-                    title = "Abhijit Muhurta",
-                    window = win,
-                    description = "Midday window generally auspicious for executing significant actions.",
-                    iconTint = Color(0xFF81C784)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimingRow(
-    icon: ImageVector,
-    title: String,
-    window: String,
-    description: String,
-    iconTint: Color
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceElevated)
-            .padding(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = title,
+                    text = "${taraBala.taraName} (${taraBala.quality})",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = window,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = iconTint
+                    color = if (taraBala.quality.contains("Favorable", ignoreCase = true)) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = description,
-                style = MaterialTheme.typography.labelSmall,
+                text = taraBala.description,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -933,45 +1078,91 @@ private fun TimingRow(
 }
 
 @Composable
-private fun TraditionalRemediesSection(remedies: List<TraditionalRemedy>) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "Traditional Astrological Upay (Remedies)",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        remedies.forEach { r ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp)
-                ) {
+private fun PrioritiesAndCautionsCard(
+    priorities: List<DailyRecommendation>,
+    cautions: List<DailyCaution>
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "Priorities",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF4CAF50)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                priorities.forEach { p ->
                     Text(
-                        text = r.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = AccentAmber
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = r.practice,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Target: ${r.targetGrahaOrEnergy} • ${r.traditionalContext}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        text = "• ${p.category}: ${p.advice}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFFFF9800).copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "Cautions",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFFFF9800)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                cautions.forEach { c ->
+                    Text(
+                        text = "• ${c.category}: ${c.warning}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TraditionalRemediesCard(remedies: List<TraditionalRemedy>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Traditional Astrological Upayas",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = AccentAmber
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            remedies.forEach { r ->
+                Text(
+                    text = "${r.title}: ${r.practice}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
             }
         }
     }
@@ -1002,16 +1193,11 @@ private fun DisclaimerAndAttributionCard(rashifal: DailyRashifal) {
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = BorderSubtle)
-            Spacer(modifier = Modifier.height(10.dp))
-
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = rashifal.ethicalDisclaimer,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                textAlign = TextAlign.Justify
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
     }

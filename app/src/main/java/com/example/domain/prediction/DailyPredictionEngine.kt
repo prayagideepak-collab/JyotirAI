@@ -4,7 +4,6 @@ import com.example.domain.engine.AstrologyEngine
 import com.example.domain.models.*
 import com.example.domain.profile.ProfileRepository
 import java.time.LocalDate
-import java.time.ZonedDateTime
 
 /**
  * Architectural foundation for the Personalised Daily Horoscope / Rashifal engine.
@@ -23,7 +22,6 @@ data class DailyPredictionContext(
 
 /**
  * Contract for generating the personalised Daily Horoscope context and predictions.
- * Guarantees that only the canonical DEFAULT PROFILE is used as the prediction subject.
  */
 interface DailyPredictionEngine {
     /**
@@ -46,11 +44,27 @@ interface DailyPredictionEngine {
     suspend fun getBrahmaMuhurtaScheduleWindow(
         date: LocalDate = LocalDate.now()
     ): Result<TimeInterval?>
+
+    /**
+     * Generates structured Phase 8 Daily PeriodicPredictionResult for a specific AstrologyProfile.
+     */
+    suspend fun generateDailyPrediction(
+        profile: AstrologyProfile,
+        date: LocalDate = LocalDate.now()
+    ): Result<PeriodicPredictionResult>
+
+    /**
+     * Generates structured Phase 8 Daily PeriodicPredictionResult for the canonical DEFAULT profile.
+     */
+    suspend fun generateDailyPrediction(
+        date: LocalDate = LocalDate.now()
+    ): Result<PeriodicPredictionResult>
 }
 
 class DailyPredictionEngineImpl(
     private val profileRepository: ProfileRepository,
-    private val astrologyEngine: AstrologyEngine
+    private val astrologyEngine: AstrologyEngine,
+    private val contextBuilder: PredictionContextBuilder = PredictionContextBuilder(astrologyEngine)
 ) : DailyPredictionEngine {
 
     override suspend fun getDailyPredictionContext(date: LocalDate): Result<DailyPredictionContext> {
@@ -136,5 +150,50 @@ class DailyPredictionEngineImpl(
         val panchangResult = astrologyEngine.calculatePanchang(middayZoned, location)
         return panchangResult.map { it.muhurta?.brahmaMuhurta }
     }
-}
 
+    override suspend fun generateDailyPrediction(
+        profile: AstrologyProfile,
+        date: LocalDate
+    ): Result<PeriodicPredictionResult> {
+        val profileValidation = ResultValidator.validateProfile(profile)
+        if (!profileValidation.isValid) {
+            return Result.failure(IllegalArgumentException(profileValidation.reason))
+        }
+
+        val contextResult = contextBuilder.buildContext(profile, date)
+        if (contextResult.isFailure) {
+            return Result.failure(contextResult.exceptionOrNull() ?: IllegalStateException("Failed to build daily context"))
+        }
+        val context = contextResult.getOrThrow()
+
+        val timeContext = TimeContextResolver.resolve(
+            periodType = PredictionPeriodType.DAILY,
+            targetDate = date,
+            birthData = profile.birthData,
+            dashaTimeline = context.dashaTimeline
+        )
+
+        val rawResult = EvidenceAggregator.aggregate(
+            profile = profile,
+            periodType = PredictionPeriodType.DAILY,
+            timeContext = timeContext,
+            phase7Snapshot = context.phase7PredictionSnapshot,
+            transitSnapshot = context.transitSnapshot,
+            yogaDoshaSnapshot = context.yogaDoshaSnapshot
+        )
+
+        val sanitized = ResultValidator.sanitizeResult(rawResult)
+        return Result.success(sanitized)
+    }
+
+    override suspend fun generateDailyPrediction(date: LocalDate): Result<PeriodicPredictionResult> {
+        val defaultProfile = profileRepository.getDefaultProfileForDailyPrediction()
+            ?: return Result.failure(IllegalStateException("Default profile required for daily prediction"))
+
+        val profileResult = astrologyEngine.calculateProfile(defaultProfile.birthData)
+        if (profileResult.isFailure) {
+            return Result.failure(profileResult.exceptionOrNull() ?: IllegalStateException("Failed to calculate default natal profile"))
+        }
+        return generateDailyPrediction(profileResult.getOrThrow(), date)
+    }
+}
