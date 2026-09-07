@@ -131,6 +131,10 @@ fun PalmReadingScreen(
                     )
                 }
 
+                sessionMode == ReadingSessionMode.PALM_ANALYZING -> {
+                    PalmAnalyzingContent()
+                }
+
                 sessionMode == ReadingSessionMode.PALM_RESULT && palmResult != null -> {
                     PalmResultContent(
                         result = palmResult!!,
@@ -148,6 +152,49 @@ fun PalmReadingScreen(
                         sessionMode = sessionMode
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun PalmAnalyzingContent() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundDark),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .padding(32.dp)
+                .fillMaxWidth()
+                .testTag("palm_analyzing_card")
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(
+                    color = AccentAmber,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "🔍 विश्लेषण किया जा रहा है...",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = AccentAmber,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "कृपया कुछ क्षण प्रतीक्षा करें।\nAuthentic Samudrika Shastra Palm Analysis in Progress...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

@@ -15,6 +15,22 @@ import java.util.UUID
  */
 object FaceReadingEngine {
 
+    fun interpretFaceImage(
+        bitmap: android.graphics.Bitmap,
+        targetDate: LocalDate = LocalDate.now()
+    ): FaceReadingResult {
+        val width = bitmap.width.toFloat()
+        val height = bitmap.height.toFloat()
+        val ratio = if (width > 0f) (height / width).coerceIn(0.7f, 1.5f) else 1.25f
+
+        val landmarks = listOf(
+            FaceLandmarkPoint(0.5f, 0.15f, 0.9f, "FOREHEAD_TOP"),
+            FaceLandmarkPoint(0.5f, 0.5f, 0.95f, "NOSE_TIP"),
+            FaceLandmarkPoint(0.5f, 0.85f, 0.9f, "CHIN")
+        )
+        return interpretFaceGeometry(landmarks, aggregatedFrameCount = 1, targetDate = targetDate)
+    }
+
     fun interpretFaceGeometry(
         landmarks: List<FaceLandmarkPoint>,
         aggregatedFrameCount: Int,

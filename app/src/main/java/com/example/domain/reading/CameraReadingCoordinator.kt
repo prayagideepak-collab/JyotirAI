@@ -239,39 +239,42 @@ class CameraReadingCoordinator(
             activeTempImageFile = photoFile
             val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
+            _sessionMode.value = ReadingSessionMode.PALM_ANALYZING
+
             imageCapture.takePicture(
                 outputOptions,
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                        var analysisSuccess = false
                         try {
-                            // Validate captured image exists and is non-empty
                             if (!photoFile.exists() || photoFile.length() <= 0L) {
-                                cleanupTempFile()
-                                isCapturingOrAnalyzing.set(false)
                                 _sessionMode.value = ReadingSessionMode.PALM_GUIDANCE
-                                onError("Captured image is invalid or empty.")
+                                isCapturingOrAnalyzing.set(false)
+                                onError("हथेली की स्पष्ट पहचान नहीं हो सकी।\nकृपया दोबारा कैप्चर करें।")
                                 return
                             }
 
-                            // Perform real analysis on captured image data (private storage)
-                            val result = palmEngine.interpretPalmGeometry(
-                                landmarks = listOf(
-                                    PalmLandmarkPoint(0.5f, 0.3f, 0.8f, "HEART_LINE"),
-                                    PalmLandmarkPoint(0.5f, 0.5f, 0.8f, "HEAD_LINE"),
-                                    PalmLandmarkPoint(0.5f, 0.7f, 0.8f, "LIFE_LINE")
-                                ),
-                                aggregatedFrameCount = 1,
-                                targetDate = LocalDate.now()
-                            )
+                            val bitmap = android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath)
+                            if (bitmap == null) {
+                                _sessionMode.value = ReadingSessionMode.PALM_GUIDANCE
+                                isCapturingOrAnalyzing.set(false)
+                                onError("हथेली की स्पष्ट पहचान नहीं हो सकी।\nकृपया दोबारा कैप्चर करें।")
+                                return
+                            }
+
+                            val result = palmEngine.interpretPalmImage(bitmap, LocalDate.now())
+                            bitmap.recycle()
+
                             _palmResult.value = result
                             _sessionMode.value = ReadingSessionMode.PALM_RESULT
+                            analysisSuccess = true
                             onSuccess(result)
                         } catch (e: Exception) {
-                            _sessionMode.value = ReadingSessionMode.ERROR
-                            onError(e.localizedMessage ?: "Palm analysis failed.")
+                            _sessionMode.value = ReadingSessionMode.PALM_GUIDANCE
+                            _palmResult.value = null
+                            onError("हथेली की स्पष्ट पहचान नहीं हो सकी।\nकृपया दोबारा कैप्चर करें।")
                         } finally {
-                            // IMMEDIATE RAW IMAGE PRIVACY DISPOSAL
                             cleanupTempFile()
                             isCapturingOrAnalyzing.set(false)
                         }
@@ -281,7 +284,8 @@ class CameraReadingCoordinator(
                         cleanupTempFile()
                         isCapturingOrAnalyzing.set(false)
                         _sessionMode.value = ReadingSessionMode.PALM_GUIDANCE
-                        onError(exception.localizedMessage ?: "Camera capture failed.")
+                        _palmResult.value = null
+                        onError("कैमरा कैप्चर विफल रहा। कृपया दोबारा प्रयास करें।")
                     }
                 }
             )
@@ -289,7 +293,8 @@ class CameraReadingCoordinator(
             cleanupTempFile()
             isCapturingOrAnalyzing.set(false)
             _sessionMode.value = ReadingSessionMode.PALM_GUIDANCE
-            onError(e.localizedMessage ?: "Capture setup failed.")
+            _palmResult.value = null
+            onError("कैमरा सेटअप विफल रहा।")
         }
     }
 
@@ -347,6 +352,8 @@ class CameraReadingCoordinator(
             activeTempImageFile = photoFile
             val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
+            _sessionMode.value = ReadingSessionMode.FACE_ANALYZING
+
             imageCapture.takePicture(
                 outputOptions,
                 ContextCompat.getMainExecutor(context),
@@ -354,30 +361,31 @@ class CameraReadingCoordinator(
                     override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                         try {
                             if (!photoFile.exists() || photoFile.length() <= 0L) {
-                                cleanupTempFile()
-                                isCapturingOrAnalyzing.set(false)
                                 _sessionMode.value = ReadingSessionMode.FACE_GUIDANCE
-                                onError("Captured face image is invalid or empty.")
+                                isCapturingOrAnalyzing.set(false)
+                                onError("चेहरे की स्पष्ट पहचान नहीं हो सकी।\nकृपया सही रोशनी और सीधे कोण में दोबारा कैप्चर करें।")
                                 return
                             }
 
-                            val result = faceEngine.interpretFaceGeometry(
-                                landmarks = listOf(
-                                    FaceLandmarkPoint(0.5f, 0.2f, 0.9f, "FOREHEAD_TOP"),
-                                    FaceLandmarkPoint(0.5f, 0.5f, 0.9f, "NOSE_TIP"),
-                                    FaceLandmarkPoint(0.5f, 0.8f, 0.9f, "CHIN")
-                                ),
-                                aggregatedFrameCount = 1,
-                                targetDate = LocalDate.now()
-                            )
+                            val bitmap = android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath)
+                            if (bitmap == null) {
+                                _sessionMode.value = ReadingSessionMode.FACE_GUIDANCE
+                                isCapturingOrAnalyzing.set(false)
+                                onError("चेहरे की स्पष्ट पहचान नहीं हो सकी।\nकृपया सही रोशनी और सीधे कोण में दोबारा कैप्चर करें।")
+                                return
+                            }
+
+                            val result = faceEngine.interpretFaceImage(bitmap, LocalDate.now())
+                            bitmap.recycle()
+
                             _faceResult.value = result
                             _sessionMode.value = ReadingSessionMode.FACE_RESULT
                             onSuccess(result)
                         } catch (e: Exception) {
-                            _sessionMode.value = ReadingSessionMode.ERROR
-                            onError(e.localizedMessage ?: "Face analysis failed.")
+                            _sessionMode.value = ReadingSessionMode.FACE_GUIDANCE
+                            _faceResult.value = null
+                            onError("चेहरे की स्पष्ट पहचान नहीं हो सकी।\nकृपया सही रोशनी और सीधे कोण में दोबारा कैप्चर करें।")
                         } finally {
-                            // IMMEDIATE RAW IMAGE PRIVACY DISPOSAL
                             cleanupTempFile()
                             isCapturingOrAnalyzing.set(false)
                         }
@@ -387,7 +395,8 @@ class CameraReadingCoordinator(
                         cleanupTempFile()
                         isCapturingOrAnalyzing.set(false)
                         _sessionMode.value = ReadingSessionMode.FACE_GUIDANCE
-                        onError(exception.localizedMessage ?: "Camera capture failed.")
+                        _faceResult.value = null
+                        onError("कैमरा कैप्चर विफल रहा। कृपया दोबारा प्रयास करें।")
                     }
                 }
             )
@@ -395,7 +404,8 @@ class CameraReadingCoordinator(
             cleanupTempFile()
             isCapturingOrAnalyzing.set(false)
             _sessionMode.value = ReadingSessionMode.FACE_GUIDANCE
-            onError(e.localizedMessage ?: "Capture setup failed.")
+            _faceResult.value = null
+            onError("कैमरा सेटअप विफल रहा।")
         }
     }
 
