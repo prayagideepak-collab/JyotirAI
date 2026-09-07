@@ -243,12 +243,30 @@ class AstrologyViewModel(
     private val _nightSilenceEnabled = MutableStateFlow(true)
     val nightSilenceEnabled: StateFlow<Boolean> = _nightSilenceEnabled.asStateFlow()
 
+    private val _locationSource = MutableStateFlow("GPS")
+    val locationSource: StateFlow<String> = _locationSource.asStateFlow()
+
+    private val _isLocationConfirmed = MutableStateFlow(true)
+    val isLocationConfirmed: StateFlow<Boolean> = _isLocationConfirmed.asStateFlow()
+
+    private val _tickerSpeed = MutableStateFlow("धीमी")
+    val tickerSpeed: StateFlow<String> = _tickerSpeed.asStateFlow()
+
     fun toggleTithiVoice(enabled: Boolean) {
         _tithiVoiceEnabled.value = enabled
     }
 
     fun toggleNightSilence(enabled: Boolean) {
         _nightSilenceEnabled.value = enabled
+    }
+
+    fun setLocationSource(source: String, confirmed: Boolean = true) {
+        _locationSource.value = source
+        _isLocationConfirmed.value = confirmed
+    }
+
+    fun setTickerSpeed(speed: String) {
+        _tickerSpeed.value = speed
     }
 
     // Yoga & Dosha State (Phase 6)

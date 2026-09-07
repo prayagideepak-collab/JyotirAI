@@ -34,6 +34,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.GlobalDynamicHeader
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.viewmodel.AstrologyViewModel
+import com.example.ui.viewmodel.AstrologyViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,6 +54,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun JyotirAIApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val application = context.applicationContext as android.app.Application
+    val viewModel: AstrologyViewModel = viewModel(factory = AstrologyViewModelFactory(application))
+    val tickerSpeed by viewModel.tickerSpeed.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -56,7 +65,8 @@ fun JyotirAIApp() {
             GlobalDynamicHeader(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                tickerSpeed = tickerSpeed
             )
         },
         bottomBar = {

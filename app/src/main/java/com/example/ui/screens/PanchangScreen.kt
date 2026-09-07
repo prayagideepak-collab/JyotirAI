@@ -54,6 +54,32 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
     val alarms by viewModel.muhurtaAlarms.collectAsStateWithLifecycle()
     val tithiVoiceEnabled by viewModel.tithiVoiceEnabled.collectAsStateWithLifecycle()
     val nightSilenceEnabled by viewModel.nightSilenceEnabled.collectAsStateWithLifecycle()
+    val locationSource by viewModel.locationSource.collectAsStateWithLifecycle()
+    val isLocationConfirmed by viewModel.isLocationConfirmed.collectAsStateWithLifecycle()
+    val tickerSpeed by viewModel.tickerSpeed.collectAsStateWithLifecycle()
+
+    var showPermissionExplanation by remember { mutableStateOf(false) }
+    var showLocationConfirmation by remember { mutableStateOf(false) }
+    var showManualCityDialog by remember { mutableStateOf(false) }
+    var cityQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<BirthLocation>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarse = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fine) {
+            viewModel.setLocationSource("GPS", true)
+        } else if (coarse) {
+            viewModel.setLocationSource("अनुमानित नेटवर्क स्थान", false)
+            showLocationConfirmation = true
+        } else {
+            viewModel.setLocationSource("अनुमानित स्थान", false)
+            showLocationConfirmation = true
+        }
+    }
 
     // Date Picker Dialog Launcher
     val onPickDateClick = {
@@ -451,7 +477,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             }
                         }
 
-                        // Location Banner
+                        // Location Banner with Source & Change Button
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -459,30 +485,87 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
                             colors = CardDefaults.cardColors(containerColor = SurfaceCard)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    tint = AccentAmber,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocationOn,
+                                            contentDescription = null,
+                                            tint = AccentAmber,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = "📍 ${panchang.location.placeName}",
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "स्रोत: $locationSource • ${String.format("%.4f", panchang.location.latitude)}°N, ${String.format("%.4f", panchang.location.longitude)}°E",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    TextButton(onClick = { showManualCityDialog = true }) {
+                                        Text("स्थान बदलें", color = AccentAmber)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        text = panchang.location.placeName,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${String.format("%.4f", panchang.location.latitude)}°N, ${String.format("%.4f", panchang.location.longitude)}°E • ${panchang.location.timeZoneId ?: "UTC"}",
+                                        text = if (isLocationConfirmed) "✓ सत्यापित स्थान" else "⚠️ अनुमानित स्थान - पुष्टि आवश्यक",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isLocationConfirmed) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
                                     )
+                                    OutlinedButton(
+                                        onClick = { showPermissionExplanation = true },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("GPS अनुमति", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Ticker Speed Settings Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "सूचना प्रदर्शन गति (Ticker Speed)",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentAmber
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    listOf("धीमी", "सामान्य", "तेज़").forEach { speed ->
+                                        FilterChip(
+                                            selected = tickerSpeed == speed,
+                                            onClick = { viewModel.setTickerSpeed(speed) },
+                                            label = { Text(speed) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -835,6 +918,120 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                 }
             }
         }
+    }
+
+    // Permission Explanation Dialog
+    if (showPermissionExplanation) {
+        AlertDialog(
+            onDismissRequest = { showPermissionExplanation = false },
+            title = { Text("स्थान अनुमति (Location Permission)", fontWeight = FontWeight.Bold, color = AccentAmber) },
+            text = { Text("स्थान की जानकारी पंचांग और मुहूर्त की सही गणना के लिए उपयोग की जाती है।", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionExplanation = false
+                        permissionLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentAmber)
+                ) {
+                    Text("अनुमति दें", color = DeepNavy)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionExplanation = false }) {
+                    Text("रद्द करें", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    // Location Confirmation Dialog
+    if (showLocationConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showLocationConfirmation = false },
+            title = { Text("क्या आपका स्थान सही है?", fontWeight = FontWeight.Bold, color = AccentAmber) },
+            text = { Text("अनुमानित नेटवर्क स्थान (Approximate Location) का उपयोग किया जा रहा है। क्या यह सही है?", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLocationConfirmation = false
+                        viewModel.setLocationSource(locationSource, true)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    Text("हाँ (Confirm)", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showLocationConfirmation = false
+                    showManualCityDialog = true
+                }) {
+                    Text("स्थान बदलें", color = AccentAmber)
+                }
+            }
+        )
+    }
+
+    // Manual City Selection Dialog
+    if (showManualCityDialog) {
+        AlertDialog(
+            onDismissRequest = { showManualCityDialog = false },
+            title = { Text("स्थान खोजें (Search City)", fontWeight = FontWeight.Bold, color = AccentAmber) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = cityQuery,
+                        onValueChange = { cityQuery = it },
+                        label = { Text("शहर का नाम (e.g., Delhi, Varanasi)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            isSearching = true
+                            viewModel.resolveLocation(cityQuery) { res ->
+                                isSearching = false
+                                searchResults = res.getOrElse { emptyList() }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentAmber)
+                    ) {
+                        Text(if (isSearching) "खोज रहा है..." else "खोजें (Search)", color = DeepNavy)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    if (searchResults.isNotEmpty()) {
+                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.height(150.dp)) {
+                            items(searchResults.size) { index ->
+                                val loc = searchResults[index]
+                                TextButton(
+                                    onClick = {
+                                        viewModel.saveVerifiedLocation(loc)
+                                        showManualCityDialog = false
+                                        searchResults = emptyList()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("📍 ${loc.placeName} (${loc.timeZoneId})", color = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showManualCityDialog = false }) {
+                    Text("बंद करें")
+                }
+            }
+        )
     }
 }
 

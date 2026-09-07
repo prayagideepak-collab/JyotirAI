@@ -21,7 +21,10 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun GlobalDynamicHeader(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    activeItemsCount: Int = 1,
+    tickerSpeed: String = "धीमी",
+    primaryInfo: String = "🔴 दशमी समाप्त होने में: 04:18:32"
 ) {
     var currentTime by remember { mutableStateOf(LocalDateTime.now()) }
 
@@ -35,13 +38,20 @@ fun GlobalDynamicHeader(
     val timeFormatter = DateTimeFormatter.ofPattern("hh:mm:ss a")
     val dateFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy")
 
-    // Right to left ticker animation state
+    // Determine animation duration based on readable speed control
+    val animDuration = when (tickerSpeed) {
+        "तेज़" -> 7000
+        "सामान्य" -> 14000
+        else -> 24000 // धीमी (slow readable speed)
+    }
+
+    // Right to left ticker animation state for multiple items
     val infiniteTransition = rememberInfiniteTransition(label = "ticker")
     val tickerOffset by infiniteTransition.animateFloat(
         initialValue = 1000f,
         targetValue = -1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
+            animation = tween(animDuration, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "ticker_offset"
@@ -86,7 +96,7 @@ fun GlobalDynamicHeader(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Smooth Right-to-Left Ticker Banner
+            // Smart Header Content Mode: Single Item vs Multiple Item Readable Speed
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,20 +104,32 @@ fun GlobalDynamicHeader(
                     .clip(RoundedCornerShape(6.dp))
                     .background(MaterialTheme.colorScheme.surface)
                     .padding(horizontal = 8.dp),
-                contentAlignment = Alignment.CenterStart
+                contentAlignment = if (activeItemsCount <= 1) Alignment.CenterStart else Alignment.CenterStart
             ) {
-                val tickerText = "✨ Sidereal Ephemeris Active • Auspicious Muhurta Window Open • Real-time Vedic Computation • Planetary Transits Synchronized • "
-                Row(
-                    modifier = Modifier.offset(x = tickerOffset.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                if (activeItemsCount <= 1) {
+                    // Single Item Mode: FIXED, NO SCROLL, NO MARQUEE
                     Text(
-                        text = tickerText + tickerText,
+                        text = primaryInfo,
                         style = MaterialTheme.typography.labelSmall,
                         color = AccentAmber,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
+                } else {
+                    // Multiple Item Mode: Slow Readable Ticker with Speed Control
+                    val tickerText = "✨ $primaryInfo • 🟢 एकादशी शुरू: 04:18:32 • ⭐ नक्षत्र परिवर्तन: 01:12:20 • "
+                    Row(
+                        modifier = Modifier.offset(x = tickerOffset.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = tickerText + tickerText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentAmber,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
