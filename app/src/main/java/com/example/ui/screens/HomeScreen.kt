@@ -82,11 +82,6 @@ fun HomeScreen(
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        // Global Dynamic Header with Live Clock & Right-to-Left Ticker
-        com.example.ui.components.GlobalDynamicHeader(
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
         // Profile Slots Management Bar (when profiles exist)
         if (savedProfiles.isNotEmpty()) {
             ProfileSlotsBar(

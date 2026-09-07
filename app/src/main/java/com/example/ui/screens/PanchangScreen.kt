@@ -72,28 +72,40 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Daily Panchang",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = AccentAmber
-                        )
-                        Text(
-                            text = "वैदिक पंचांग • Astronomical Almanac",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                actions = {
-                    val panchang = (uiState as? PanchangUiState.Success)?.snapshot
-                    if (panchang != null) {
+        containerColor = CosmicBackground
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(CosmicBackground)
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            // Screen Title & Action Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Daily Panchang (पंचांग केंद्र)",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = AccentAmber
+                    )
+                    Text(
+                        text = "वैदिक पंचांग • Astronomical Almanac",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val panchangSnapshot = (uiState as? PanchangUiState.Success)?.snapshot
+                    if (panchangSnapshot != null) {
                         AstrologySpeakerButton(
                             speechManager = speechManager,
-                            hindiTextProvider = { PanchangHindiPresenter.formatSpeechSummary(panchang) },
+                            hindiTextProvider = { PanchangHindiPresenter.formatSpeechSummary(panchangSnapshot) },
                             buttonStyle = SpeakerButtonStyle.ICON_ONLY,
                             testTag = "panchang_tts_speaker_button"
                         )
@@ -120,20 +132,9 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             tint = AccentAmber
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceNavy
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(CosmicBackground)
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
-        ) {
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Date Controls Header
@@ -543,6 +544,69 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                          )
                                     }
                                 }
+                            }
+                        }
+
+                        // Tomorrow's Advance Information Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "कल की जानकारी (Tomorrow's Preview)",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AccentAmber
+                                    )
+                                    Icon(Icons.Default.Upcoming, contentDescription = null, tint = AccentAmber)
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = BorderSubtle)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "कल: आगामी तिथि एवं नक्षत्र संक्रमण",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "वर्तमान तिथि (${panchang.tithi.name}) के पूर्ण होने के पश्चात अगली तिथि का आरंभ होगा। सभी व्रत, उपवास एवं पर्व स्थानीय सूर्योदय और तिथि व्याप्ति पर आधारित होते हैं।",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // All Tithis Reference Guide Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text(
+                                    text = "सभी तिथियाँ एवं महत्व (Tithi Reference Guide)",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentAmber
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = BorderSubtle)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "• प्रतिपदा (Pratipada): नए कार्यों और संकल्पों के लिए शुभ\n• एकादशी (Ekadashi): श्री हरि विष्णु व्रत एवं उपवास\n• पूर्णिमा (Purnima): सत्यनारायण व्रत, चंद्र दर्शन एवं पूर्ण ऊर्जा\n• अमावस्या (Amavasya): पितृ तर्पण, दान-पुण्य एवं साधना",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
 

@@ -29,6 +29,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import com.example.ui.components.GlobalDynamicHeader
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,6 +52,13 @@ fun JyotirAIApp() {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            GlobalDynamicHeader(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -67,6 +79,7 @@ fun JyotirAIApp() {
                 val items = listOf(
                     Triple(Screen.Home, "Home", Icons.Filled.Home),
                     Triple(Screen.Chart, "Kundli", Icons.Filled.Star),
+                    Triple(Screen.Panchang, "पंचांग", Icons.Filled.CalendarMonth),
                     Triple(Screen.Dasha, "Dasha", Icons.Filled.Schedule),
                     Triple(Screen.Assistant, "Astrologer", Icons.Filled.AutoAwesome)
                 )
