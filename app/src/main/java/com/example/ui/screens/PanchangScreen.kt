@@ -52,6 +52,8 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
     val uiState by viewModel.panchangUiState.collectAsStateWithLifecycle()
     val dateTime by viewModel.panchangDateTime.collectAsStateWithLifecycle()
     val alarms by viewModel.muhurtaAlarms.collectAsStateWithLifecycle()
+    val tithiVoiceEnabled by viewModel.tithiVoiceEnabled.collectAsStateWithLifecycle()
+    val nightSilenceEnabled by viewModel.nightSilenceEnabled.collectAsStateWithLifecycle()
 
     // Date Picker Dialog Launcher
     val onPickDateClick = {
@@ -233,12 +235,222 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                     val panchang = state.snapshot
                     val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
+                    val zone = panchang.location.timeZoneId?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.of("UTC")
+                    var currentZonedDateTime by remember { mutableStateOf(java.time.ZonedDateTime.now(zone)) }
+                    LaunchedEffect(zone) {
+                        while (true) {
+                            kotlinx.coroutines.delay(1000L)
+                            currentZonedDateTime = java.time.ZonedDateTime.now(zone)
+                        }
+                    }
+
+                    val clockFormatter = DateTimeFormatter.ofPattern("HH : mm : ss")
+                    val currentTimeStr = currentZonedDateTime.format(clockFormatter)
+
+                    val endTime = panchang.tithi.endTime ?: currentZonedDateTime.plusHours(12)
+                    val endDurationMillis = java.time.Duration.between(currentZonedDateTime, endTime).toMillis()
+                    if (endDurationMillis <= 0) {
+                        LaunchedEffect(Unit) {
+                            viewModel.loadPanchang()
+                        }
+                    }
+                    val safeEndMillis = maxOf(0L, endDurationMillis)
+                    val endHours = (safeEndMillis / (1000 * 60 * 60))
+                    val endMinutes = (safeEndMillis / (1000 * 60)) % 60
+                    val endSeconds = (safeEndMillis / 1000) % 60
+                    val endCountdownStr = String.format("%02d : %02d : %02d", endHours, endMinutes, endSeconds)
+
+                    val nextTithiIndex = if (panchang.tithi.index >= 30) 1 else panchang.tithi.index + 1
+                    val upcomingTithiName = when(nextTithiIndex) {
+                        1 -> "प्रतिपदा (Pratipada)"
+                        2 -> "द्वितीया (Dvitiya)"
+                        3 -> "तृतीया (Tritiya)"
+                        11 -> "एकादशी (Ekadashi)"
+                        15 -> "पूर्णिमा (Purnima)"
+                        30 -> "अमावस्या (Amavasya)"
+                        else -> "तिथि #${nextTithiIndex}"
+                    }
+
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Live Clock & Three Time Systems Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .border(1.dp, AccentAmber.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "🕒 वर्तमान समय (Live Clock)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AccentAmber
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = currentTimeStr,
+                                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = AccentAmber, modifier = Modifier.size(28.dp))
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = BorderSubtle)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Current Tithi Countdown (Red State)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🔴 वर्तमान तिथि (${panchang.tithi.name})",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "समाप्त होने में: $endCountdownStr",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = "समाप्त (Ending)",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = BorderSubtle.copy(alpha = 0.5f))
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Upcoming Tithi Countdown (Green State)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🟢 आगामी तिथि ($upcomingTithiName)",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = Color(0xFF4CAF50)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "शुरू होने में: $endCountdownStr",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF4CAF50).copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = "शुरू (Starting)",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = Color(0xFF4CAF50),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Voice Announcement & Night Silence Settings Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(18.dp)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "तिथि सूचना एवं सेटिंग्स (Voice & Silence)",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentAmber
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                HorizontalDivider(color = BorderSubtle)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🔊 तिथि परिवर्तन आवाज़ सूचना",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "तिथि बदलने पर ऑडियो घोषणा",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = tithiVoiceEnabled,
+                                        onCheckedChange = { viewModel.toggleTithiVoice(it) },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = DeepNavy, checkedTrackColor = AccentAmber)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🌙 नाइट साइलेंट (Night Silence)",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "रात (22:00 से 06:00) में आवाज़ बंद रहेगी",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = nightSilenceEnabled,
+                                        onCheckedChange = { viewModel.toggleNightSilence(it) },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = DeepNavy, checkedTrackColor = AccentAmber)
+                                    )
+                                }
+                            }
+                        }
+
                         // Location Banner
                         Card(
                             modifier = Modifier

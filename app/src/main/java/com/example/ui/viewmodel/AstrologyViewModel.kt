@@ -237,6 +237,20 @@ class AstrologyViewModel(
     private val _panchangDateTime = MutableStateFlow<ZonedDateTime?>(null)
     val panchangDateTime: StateFlow<ZonedDateTime?> = _panchangDateTime.asStateFlow()
 
+    private val _tithiVoiceEnabled = MutableStateFlow(false)
+    val tithiVoiceEnabled: StateFlow<Boolean> = _tithiVoiceEnabled.asStateFlow()
+
+    private val _nightSilenceEnabled = MutableStateFlow(true)
+    val nightSilenceEnabled: StateFlow<Boolean> = _nightSilenceEnabled.asStateFlow()
+
+    fun toggleTithiVoice(enabled: Boolean) {
+        _tithiVoiceEnabled.value = enabled
+    }
+
+    fun toggleNightSilence(enabled: Boolean) {
+        _nightSilenceEnabled.value = enabled
+    }
+
     // Yoga & Dosha State (Phase 6)
     private val _yogaDoshaState = MutableStateFlow<YogaDoshaUiState>(YogaDoshaUiState.Empty)
     val yogaDoshaState: StateFlow<YogaDoshaUiState> = _yogaDoshaState.asStateFlow()
