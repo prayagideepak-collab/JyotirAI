@@ -30,7 +30,8 @@ import java.time.LocalDate
 @Composable
 fun NumerologyScreen(
     viewModel: AstrologyViewModel,
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    onNavigateToNumberCompatibility: () -> Unit = {}
 ) {
     val numerologyState by viewModel.numerologyUiState.collectAsStateWithLifecycle()
     val currentMethodology by viewModel.numerologyMethodology.collectAsStateWithLifecycle()
@@ -215,7 +216,10 @@ fun NumerologyScreen(
                 }
 
                 is NumerologyUiState.Success -> {
-                    NumerologyResultContent(result = state.result)
+                    NumerologyResultContent(
+                        result = state.result,
+                        onNavigateToNumberCompatibility = onNavigateToNumberCompatibility
+                    )
                 }
             }
 
@@ -225,11 +229,52 @@ fun NumerologyScreen(
 }
 
 @Composable
-fun NumerologyResultContent(result: NumerologyResult) {
+fun NumerologyResultContent(
+    result: NumerologyResult,
+    onNavigateToNumberCompatibility: () -> Unit = {}
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Number Compatibility Banner Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, AccentAmber, RoundedCornerShape(16.dp))
+                .clickable { onNavigateToNumberCompatibility() }
+                .testTag("open_number_compatibility_card"),
+            colors = CardDefaults.cardColors(containerColor = SurfaceElevated)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "⭐ संख्या अनुकूलता और प्रभाव",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentAmber
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "मोबाइल, वाहन, मकान या व्यवसायिक नंबर का अपनी प्रोफाइल से मिलान करें",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = AccentAmber
+                )
+            }
+        }
         // Core Numbers Matrix
         Row(
             modifier = Modifier.fillMaxWidth(),

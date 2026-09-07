@@ -269,6 +269,14 @@ class AstrologyViewModel(
     private val _numerologyMethodology = MutableStateFlow(com.example.domain.numerology.NumerologyMethodology.CHALDEAN)
     val numerologyMethodology: StateFlow<com.example.domain.numerology.NumerologyMethodology> = _numerologyMethodology.asStateFlow()
 
+    // Number Compatibility & Impact Analysis State
+    private val numberCompatibilityEngine = com.example.domain.numerology.NumberCompatibilityEngine()
+    private val _numberCompatibilityResult = MutableStateFlow<com.example.domain.numerology.NumberCompatibilityResult?>(null)
+    val numberCompatibilityResult: StateFlow<com.example.domain.numerology.NumberCompatibilityResult?> = _numberCompatibilityResult.asStateFlow()
+
+    private val _numberComparisonResult = MutableStateFlow<com.example.domain.numerology.NumberComparisonResult?>(null)
+    val numberComparisonResult: StateFlow<com.example.domain.numerology.NumberComparisonResult?> = _numberComparisonResult.asStateFlow()
+
     // Phase 12 — AI Astrologer State & Implementation
     private val aiAstrologerService: com.example.domain.ai.AIAstrologerService = com.example.domain.ai.AIAstrologerServiceImpl(numerologyEngine)
     private val _aiAstrologerUiState = MutableStateFlow<AIAstrologerUiState>(AIAstrologerUiState.Idle)
@@ -1243,5 +1251,37 @@ class AstrologyViewModel(
         _aiAstrologerHistory.value = emptyList()
         _aiAstrologerUiState.value = AIAstrologerUiState.Idle
         aiAstrologerService.clearCache()
+    }
+
+    fun analyzeNumberCompatibility(
+        rawInput: String,
+        category: com.example.domain.numerology.NumberCategory,
+        customLabel: String?,
+        purposes: List<com.example.domain.numerology.CompatibilityPurpose>
+    ): Boolean {
+        val profile = _activeUserProfile.value ?: _defaultUserProfile.value ?: return false
+        val numerologyResult = numerologyEngine.calculateForProfile(profile, _numerologyMethodology.value)
+        val normalized = com.example.domain.numerology.NumberNormalizationUtils.normalize(rawInput, category, customLabel)
+        val res = numberCompatibilityEngine.analyze(normalized, numerologyResult, purposes)
+        _numberCompatibilityResult.value = res
+        return true
+    }
+
+    fun compareNumbers(
+        inputA: String,
+        categoryA: com.example.domain.numerology.NumberCategory,
+        labelA: String?,
+        inputB: String,
+        categoryB: com.example.domain.numerology.NumberCategory,
+        labelB: String?,
+        purposes: List<com.example.domain.numerology.CompatibilityPurpose>
+    ): Boolean {
+        val profile = _activeUserProfile.value ?: _defaultUserProfile.value ?: return false
+        val numerologyResult = numerologyEngine.calculateForProfile(profile, _numerologyMethodology.value)
+        val normA = com.example.domain.numerology.NumberNormalizationUtils.normalize(inputA, categoryA, labelA)
+        val normB = com.example.domain.numerology.NumberNormalizationUtils.normalize(inputB, categoryB, labelB)
+        val comp = numberCompatibilityEngine.compare(normA, normB, numerologyResult, purposes)
+        _numberComparisonResult.value = comp
+        return true
     }
 }

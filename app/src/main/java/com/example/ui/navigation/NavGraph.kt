@@ -75,7 +75,14 @@ fun JyotishNavGraph(
         composable(Screen.Numerology.route) {
             NumerologyScreen(
                 viewModel = astrologyViewModel,
-                onNavigateToHome = { navController.navigate(Screen.Home.route) }
+                onNavigateToHome = { navController.navigate(Screen.Home.route) },
+                onNavigateToNumberCompatibility = { navController.navigate(Screen.NumberCompatibility.route) }
+            )
+        }
+        composable(Screen.NumberCompatibility.route) {
+            NumberCompatibilityScreen(
+                viewModel = astrologyViewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable(Screen.PalmReading.route) {
