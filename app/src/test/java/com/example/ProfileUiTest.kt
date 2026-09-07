@@ -91,7 +91,7 @@ class ProfileUiTest {
 
         // Profile view and profile slots bar should now be displayed
         composeTestRule.onNodeWithTag("profile_slots_bar").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("astrology_profile_view").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("astrology_profile_view").performScrollTo().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("Aarav Sharma (Reference)").assertCountEquals(2)
     }
 

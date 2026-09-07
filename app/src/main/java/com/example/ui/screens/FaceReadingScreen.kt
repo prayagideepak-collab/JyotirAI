@@ -199,11 +199,28 @@ fun FaceCameraCaptureContent(
     quality: com.example.domain.models.FaceFrameQuality,
     sessionMode: ReadingSessionMode
 ) {
+    val context = LocalContext.current
+    var imageCapture by remember { mutableStateOf<androidx.camera.core.ImageCapture?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Auto-capture trigger when usable
+    LaunchedEffect(quality.isUsable, sessionMode) {
+        if (quality.isUsable && sessionMode == ReadingSessionMode.FACE_CAPTURING && imageCapture != null) {
+            coordinator.triggerAutoFaceCapture(
+                imageCapture = imageCapture!!,
+                context = context,
+                onSuccess = {},
+                onError = { msg -> errorMessage = msg }
+            )
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. Live Camera Preview (Front Camera Only)
         CameraReadingPreview(
             isFrontCamera = true,
             coordinator = coordinator,
+            onImageCaptureReady = { imageCapture = it },
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("face_camera_preview")
@@ -276,36 +293,62 @@ fun FaceCameraCaptureContent(
                             isOk = quality.faceDetected
                         )
                         QualityStatusChip(
-                            label = if (quality.lightingScore >= 0.4f) "Good Light" else "Low Light",
-                            isOk = quality.lightingScore >= 0.4f
+                            label = if (quality.lightingScore >= 0.35f) "Good Light" else "Low Light",
+                            isOk = quality.lightingScore >= 0.35f
                         )
                         QualityStatusChip(
-                            label = if (quality.sharpnessScore >= 0.4f) "Steady" else "Motion Blur",
-                            isOk = quality.sharpnessScore >= 0.4f
+                            label = if (quality.sharpnessScore >= 0.35f) "Steady" else "Motion Blur",
+                            isOk = quality.sharpnessScore >= 0.35f
+                        )
+                    }
+
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 }
             }
         }
 
-        // 4. Bottom Instructions Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark.copy(alpha = 0.9f)),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        // 4. Manual Capture Button (Method B) & Instructions
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Button(
+                onClick = {
+                    if (imageCapture != null) {
+                        coordinator.captureManualFace(
+                            imageCapture = imageCapture!!,
+                            context = context,
+                            onSuccess = {},
+                            onError = { msg -> errorMessage = msg }
+                        )
+                    }
+                },
+                enabled = quality.isUsable && imageCapture != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentAmber,
+                    contentColor = DeepNavy,
+                    disabledContainerColor = SurfaceElevated,
+                    disabledContentColor = TextSecondary
+                ),
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("face_manual_capture_button")
             ) {
-                Text(
-                    text = "Look straight into the front camera. The system accumulates multi-view landmark geometry across 10 stable frames to evaluate the classical three Vedic zones (Tri-Bhaga).",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(imageVector = Icons.Default.Camera, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("📸 कैप्चर करें (Capture Face)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }

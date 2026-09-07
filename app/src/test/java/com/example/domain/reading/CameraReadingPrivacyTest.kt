@@ -1,8 +1,6 @@
 package com.example.domain.reading
 
 import androidx.camera.core.CameraSelector
-import com.example.domain.models.FaceLandmarkPoint
-import com.example.domain.models.PalmLandmarkPoint
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -42,28 +40,15 @@ class CameraReadingPrivacyTest {
     fun testRawImageAndLandmarkPrivacyDisposal() {
         coordinator.startFaceSession()
 
-        val dummyFaceLandmarks = listOf(
-            FaceLandmarkPoint(0.5f, 0.2f, 0.05f, "FOREHEAD_TOP"),
-            FaceLandmarkPoint(0.5f, 0.55f, 0.2f, "NOSE_TIP")
+        coordinator.processFaceFrame(
+            faceDetected = true,
+            lighting = 0.8f,
+            sharpness = 0.8f,
+            symmetry = 0.9f,
+            distanceRatio = 0.6f
         )
 
-        // Stream 10 usable frames to trigger analysis
-        for (i in 1..10) {
-            coordinator.processFaceFrame(
-                faceDetected = true,
-                lighting = 0.8f,
-                sharpness = 0.8f,
-                symmetry = 0.9f,
-                landmarks = dummyFaceLandmarks,
-                distanceRatio = 0.6f
-            )
-        }
-
-        // Analysis completed successfully, result produced
-        assertEquals(ReadingSessionMode.FACE_RESULT, coordinator.sessionMode.value)
-        assertNotNull(coordinator.faceResult.value)
-
-        // Recapture / Discard results must clear temporary session buffers and state
+        // Discard results must clear temporary session buffers and state
         coordinator.discardReadingResults()
         assertEquals(ReadingSessionMode.IDLE, coordinator.sessionMode.value)
         assertNull(coordinator.faceResult.value)

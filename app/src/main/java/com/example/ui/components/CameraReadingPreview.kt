@@ -30,6 +30,7 @@ import java.util.concurrent.Executors
 fun CameraReadingPreview(
     isFrontCamera: Boolean,
     coordinator: CameraReadingCoordinator,
+    onImageCaptureReady: (ImageCapture) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -69,6 +70,11 @@ fun CameraReadingPreview(
                     it.surfaceProvider = previewView.surfaceProvider
                 }
 
+                val imageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .build()
+                onImageCaptureReady(imageCapture)
+
                 val targetLens = if (isFrontCamera) {
                     CameraSelector.LENS_FACING_FRONT
                 } else {
@@ -90,25 +96,21 @@ fun CameraReadingPreview(
 
                         if (isFrontCamera) {
                             // Face frame analysis
-                            val faceDetected = brightness in 0.25f..0.95f
-                            val landmarks = if (faceDetected) generateFaceLandmarks() else emptyList()
+                            val faceDetected = brightness in 0.2f..0.98f
                             coordinator.processFaceFrame(
                                 faceDetected = faceDetected,
                                 lighting = brightness,
                                 sharpness = sharpness,
                                 symmetry = 0.85f,
-                                landmarks = landmarks,
                                 distanceRatio = 0.6f
                             )
                         } else {
                             // Palm frame analysis
-                            val handDetected = brightness in 0.25f..0.95f
-                            val landmarks = if (handDetected) generatePalmLandmarks() else emptyList()
+                            val handDetected = brightness in 0.2f..0.98f
                             coordinator.processPalmFrame(
                                 handDetected = handDetected,
                                 lighting = brightness,
                                 sharpness = sharpness,
-                                landmarks = landmarks,
                                 distanceRatio = 0.6f
                             )
                         }
@@ -125,10 +127,10 @@ fun CameraReadingPreview(
                         lifecycleOwner,
                         cameraSelector,
                         preview,
+                        imageCapture,
                         imageAnalysis
                     )
                 } catch (_: Exception) {
-                    // Fallback or preview binding handling
                 }
             }, ContextCompat.getMainExecutor(ctx))
 

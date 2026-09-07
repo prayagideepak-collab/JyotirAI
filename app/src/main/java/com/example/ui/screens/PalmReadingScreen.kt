@@ -200,11 +200,28 @@ fun PalmCameraCaptureContent(
     quality: com.example.domain.models.PalmFrameQuality,
     sessionMode: ReadingSessionMode
 ) {
+    val context = LocalContext.current
+    var imageCapture by remember { mutableStateOf<androidx.camera.core.ImageCapture?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Auto-capture trigger when usable
+    LaunchedEffect(quality.isUsable, sessionMode) {
+        if (quality.isUsable && sessionMode == ReadingSessionMode.PALM_CAPTURING && imageCapture != null) {
+            coordinator.triggerAutoPalmCapture(
+                imageCapture = imageCapture!!,
+                context = context,
+                onSuccess = {},
+                onError = { msg -> errorMessage = msg }
+            )
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. Live Camera Preview (Back Camera Only)
         CameraReadingPreview(
             isFrontCamera = false,
             coordinator = coordinator,
+            onImageCaptureReady = { imageCapture = it },
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("palm_camera_preview")
@@ -279,36 +296,62 @@ fun PalmCameraCaptureContent(
                             isOk = quality.handDetected
                         )
                         QualityStatusChip(
-                            label = if (quality.lightingScore >= 0.4f) "Good Light" else "Low Light",
-                            isOk = quality.lightingScore >= 0.4f
+                            label = if (quality.lightingScore >= 0.35f) "Good Light" else "Low Light",
+                            isOk = quality.lightingScore >= 0.35f
                         )
                         QualityStatusChip(
-                            label = if (quality.sharpnessScore >= 0.4f) "Steady" else "Motion Blur",
-                            isOk = quality.sharpnessScore >= 0.4f
+                            label = if (quality.sharpnessScore >= 0.35f) "Steady" else "Motion Blur",
+                            isOk = quality.sharpnessScore >= 0.35f
+                        )
+                    }
+
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 }
             }
         }
 
-        // 4. Bottom Instructions Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark.copy(alpha = 0.9f)),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        // 4. Manual Capture Button (Method B)
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Button(
+                onClick = {
+                    if (imageCapture != null) {
+                        coordinator.captureManualPalm(
+                            imageCapture = imageCapture!!,
+                            context = context,
+                            onSuccess = {},
+                            onError = { msg -> errorMessage = msg }
+                        )
+                    }
+                },
+                enabled = quality.isUsable && imageCapture != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentAmber,
+                    contentColor = DeepNavy,
+                    disabledContainerColor = SurfaceElevated,
+                    disabledContentColor = TextSecondary
+                ),
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("palm_manual_capture_button")
             ) {
-                Text(
-                    text = "Keep your dominant palm open and flat facing the back camera. Multi-frame optical landmark aggregation will automatically analyze major lines once 10 stable frames are registered.",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(imageVector = Icons.Default.Camera, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("📸 कैप्चर करें (Capture Palm)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }

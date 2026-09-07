@@ -79,6 +79,11 @@ fun HomeScreen(
             text = "Precision Vedic Astrological Computation Engine",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        // Global Dynamic Header with Live Clock & Right-to-Left Ticker
+        com.example.ui.components.GlobalDynamicHeader(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
