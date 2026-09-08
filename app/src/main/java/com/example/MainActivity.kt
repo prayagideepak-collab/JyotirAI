@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.viewmodel.AstrologyViewModel
 import com.example.ui.viewmodel.AstrologyViewModelFactory
+import com.example.ui.viewmodel.PanchangUiState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +60,42 @@ fun JyotirAIApp() {
     val application = context.applicationContext as android.app.Application
     val viewModel: AstrologyViewModel = viewModel(factory = AstrologyViewModelFactory(application))
     val tickerSpeed by viewModel.tickerSpeed.collectAsStateWithLifecycle()
+    val panchangUiState by viewModel.panchangUiState.collectAsStateWithLifecycle()
+    val snapshot = (panchangUiState as? PanchangUiState.Success)?.snapshot
+    val events = remember(snapshot) {
+        if (snapshot != null) com.example.domain.panchang.VedicEventEngine.generateTimeline(snapshot) else emptyList()
+    }
+    val now = java.time.ZonedDateTime.now(snapshot?.location?.timeZoneId?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault())
+    val nearestEvent = remember(events, now) {
+        com.example.domain.panchang.VedicEventEngine.getNearestUpcomingEvent(events, now)
+    }
+    val endingEvent = remember(events, now) {
+        com.example.domain.panchang.VedicEventEngine.getEndingSoonEvent(events, now)
+    }
+
+    val primaryInfo = when {
+        endingEvent != null -> {
+            val remaining = java.time.Duration.between(now, endingEvent.endTime)
+            val h = maxOf(0L, remaining.toHours())
+            val m = maxOf(0L, remaining.toMinutes() % 60)
+            val s = maxOf(0L, remaining.seconds % 60)
+            "🔴 ${endingEvent.displayName} समाप्त होने में: %02d:%02d:%02d".format(h, m, s)
+        }
+        nearestEvent != null -> {
+            val remaining = java.time.Duration.between(now, nearestEvent.startTime)
+            val h = maxOf(0L, remaining.toHours())
+            val m = maxOf(0L, remaining.toMinutes() % 60)
+            val s = maxOf(0L, remaining.seconds % 60)
+            "🟢 आगामी ${nearestEvent.displayName} शुरू: %02d:%02d:%02d".format(h, m, s)
+        }
+        snapshot != null -> {
+            val samvat = com.example.domain.panchang.VedicEventEngine.calculateVikramSamvat(snapshot.requestedDateTime.toLocalDate())
+            "विक्रम संवत $samvat • ${snapshot.vara.hindiName} • ${snapshot.tithi.hindiName}"
+        }
+        else -> "🟢 वैदिक पंचांग एवं मुहूर्त सक्रिय"
+    }
+
+    val activeItemsCount = if (events.size > 1) 2 else 1
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -66,7 +104,9 @@ fun JyotirAIApp() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 6.dp),
-                tickerSpeed = tickerSpeed
+                activeItemsCount = activeItemsCount,
+                tickerSpeed = tickerSpeed,
+                primaryInfo = primaryInfo
             )
         },
         bottomBar = {

@@ -273,29 +273,34 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                     val clockFormatter = DateTimeFormatter.ofPattern("HH : mm : ss")
                     val currentTimeStr = currentZonedDateTime.format(clockFormatter)
 
-                    val endTime = panchang.tithi.endTime ?: currentZonedDateTime.plusHours(12)
-                    val endDurationMillis = java.time.Duration.between(currentZonedDateTime, endTime).toMillis()
-                    if (endDurationMillis <= 0) {
-                        LaunchedEffect(Unit) {
-                            viewModel.loadPanchang()
-                        }
+                    val events = remember(panchang, currentZonedDateTime) {
+                        com.example.domain.panchang.VedicEventEngine.generateTimeline(panchang, currentZonedDateTime)
                     }
-                    val safeEndMillis = maxOf(0L, endDurationMillis)
-                    val endHours = (safeEndMillis / (1000 * 60 * 60))
-                    val endMinutes = (safeEndMillis / (1000 * 60)) % 60
-                    val endSeconds = (safeEndMillis / 1000) % 60
-                    val endCountdownStr = String.format("%02d : %02d : %02d", endHours, endMinutes, endSeconds)
+                    val endingEvent = remember(events, currentZonedDateTime) {
+                        com.example.domain.panchang.VedicEventEngine.getEndingSoonEvent(events, currentZonedDateTime)
+                    }
+                    val nearestEvent = remember(events, currentZonedDateTime) {
+                        com.example.domain.panchang.VedicEventEngine.getNearestUpcomingEvent(events, currentZonedDateTime)
+                    }
+                    val vikramSamvat = com.example.domain.panchang.VedicEventEngine.calculateVikramSamvat(panchang.requestedDateTime.toLocalDate())
 
-                    val nextTithiIndex = if (panchang.tithi.index >= 30) 1 else panchang.tithi.index + 1
-                    val upcomingTithiName = when(nextTithiIndex) {
-                        1 -> "प्रतिपदा (Pratipada)"
-                        2 -> "द्वितीया (Dvitiya)"
-                        3 -> "तृतीया (Tritiya)"
-                        11 -> "एकादशी (Ekadashi)"
-                        15 -> "पूर्णिमा (Purnima)"
-                        30 -> "अमावस्या (Amavasya)"
-                        else -> "तिथि #${nextTithiIndex}"
-                    }
+                    val endingCountdownStr = if (endingEvent?.endTime != null) {
+                        val duration = java.time.Duration.between(currentZonedDateTime, endingEvent.endTime)
+                        val millis = maxOf(0L, duration.toMillis())
+                        val h = (millis / (1000 * 60 * 60))
+                        val m = (millis / (1000 * 60)) % 60
+                        val s = (millis / 1000) % 60
+                        String.format("%02d : %02d : %02d", h, m, s)
+                    } else "00 : 00 : 00"
+
+                    val upcomingCountdownStr = if (nearestEvent?.startTime != null) {
+                        val duration = java.time.Duration.between(currentZonedDateTime, nearestEvent.startTime)
+                        val millis = maxOf(0L, duration.toMillis())
+                        val h = (millis / (1000 * 60 * 60))
+                        val m = (millis / (1000 * 60)) % 60
+                        val s = (millis / 1000) % 60
+                        String.format("%02d : %02d : %02d", h, m, s)
+                    } else "00 : 00 : 00"
 
                     Column(
                         modifier = Modifier
@@ -303,7 +308,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Live Clock & Three Time Systems Card
+                        // Live Clock & Vikram Samvat & Time Systems Card
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -319,7 +324,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 ) {
                                     Column {
                                         Text(
-                                            text = "🕒 वर्तमान समय (Live Clock)",
+                                            text = "🕒 वर्तमान समय (Live Clock) • विक्रम संवत $vikramSamvat",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = AccentAmber
                                         )
@@ -337,7 +342,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 HorizontalDivider(color = BorderSubtle)
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // Current Tithi Countdown (Red State)
+                                // Current Active Event Countdown (Red State)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -345,13 +350,13 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "🔴 वर्तमान तिथि (${panchang.tithi.name})",
+                                            text = "🔴 ${endingEvent?.displayName ?: panchang.tithi.hindiName}",
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.error
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "समाप्त होने में: $endCountdownStr",
+                                            text = "समाप्त होने में: $endingCountdownStr",
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
@@ -361,7 +366,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                         color = MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
                                     ) {
                                         Text(
-                                            text = "समाप्त (Ending)",
+                                            text = "सक्रिय (Active)",
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -373,7 +378,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 HorizontalDivider(color = BorderSubtle.copy(alpha = 0.5f))
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Upcoming Tithi Countdown (Green State)
+                                // Upcoming Event Countdown (Green State)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -381,13 +386,13 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "🟢 आगामी तिथि ($upcomingTithiName)",
+                                            text = "🟢 ${nearestEvent?.displayName ?: "अगला मुहूर्त"}",
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                             color = Color(0xFF4CAF50)
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "शुरू होने में: $endCountdownStr",
+                                            text = "शुरू होने में: $upcomingCountdownStr",
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
@@ -397,7 +402,7 @@ fun PanchangScreen(viewModel: AstrologyViewModel) {
                                         color = Color(0xFF4CAF50).copy(alpha = 0.2f)
                                     ) {
                                         Text(
-                                            text = "शुरू (Starting)",
+                                            text = "आगामी (Upcoming)",
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                             color = Color(0xFF4CAF50),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
